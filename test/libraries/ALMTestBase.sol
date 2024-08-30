@@ -23,9 +23,7 @@ abstract contract ALMTestBase is Test, Deployers {
 
     IALM hook;
 
-    TestERC20 WSTETH;
     TestERC20 USDC;
-    TestERC20 OSQTH;
     TestERC20 WETH;
 
     TestAccount marketCreator;
@@ -39,14 +37,10 @@ abstract contract ALMTestBase is Test, Deployers {
     uint256 almId;
 
     function labelTokens() public {
-        WSTETH = TestERC20(ALMBaseLib.WSTETH);
-        vm.label(address(WSTETH), "WSTETH");
-        USDC = TestERC20(ALMBaseLib.USDC);
-        vm.label(address(USDC), "USDC");
-        OSQTH = TestERC20(ALMBaseLib.OSQTH);
-        vm.label(address(OSQTH), "OSQTH");
         WETH = TestERC20(ALMBaseLib.WETH);
         vm.label(address(WETH), "WETH");
+        USDC = TestERC20(ALMBaseLib.USDC);
+        vm.label(address(USDC), "USDC");
     }
 
     function create_and_approve_accounts() public {
@@ -54,15 +48,13 @@ abstract contract ALMTestBase is Test, Deployers {
         swapper = TestAccountLib.createTestAccount("swapper");
 
         vm.startPrank(alice.addr);
-        WSTETH.approve(address(hook), type(uint256).max);
-        WSTETH.approve(address(morpho), type(uint256).max);
         USDC.approve(address(hook), type(uint256).max);
-        USDC.approve(address(morpho), type(uint256).max);
+        WETH.approve(address(hook), type(uint256).max);
         vm.stopPrank();
 
         vm.startPrank(swapper.addr);
-        WSTETH.approve(address(router), type(uint256).max);
         USDC.approve(address(router), type(uint256).max);
+        WETH.approve(address(router), type(uint256).max);
         vm.stopPrank();
     }
 
@@ -97,13 +89,6 @@ abstract contract ALMTestBase is Test, Deployers {
     }
 
     // -- Uniswap V3 -- //
-
-    function getETH_OSQTHPriceV3() public view returns (uint256) {
-        return
-            ALMBaseLib.getV3PoolPrice(
-                0x82c427AdFDf2d245Ec51D8046b41c4ee87F0d29C
-            );
-    }
 
     function getETH_USDCPriceV3() public view returns (uint256) {
         return
@@ -225,48 +210,23 @@ abstract contract ALMTestBase is Test, Deployers {
     }
 
     function assertEqBalanceStateZero(address owner) public view {
-        assertEqBalanceState(owner, 0, 0, 0, 0);
+        assertEqBalanceState(owner, 0, 0, 0);
     }
 
     function assertEqBalanceState(
         address owner,
-        uint256 _balanceWSTETH,
+        uint256 _balanceWETH,
         uint256 _balanceUSDC
     ) public view {
-        assertEqBalanceState(owner, _balanceWSTETH, _balanceUSDC, 0, 0);
+        assertEqBalanceState(owner, _balanceWETH, _balanceUSDC);
     }
 
     function assertEqBalanceState(
         address owner,
-        uint256 _balanceWSTETH,
-        uint256 _balanceUSDC,
         uint256 _balanceWETH,
-        uint256 _balanceOSQTH
-    ) public view {
-        assertEqBalanceState(
-            owner,
-            _balanceWSTETH,
-            _balanceUSDC,
-            _balanceWETH,
-            _balanceOSQTH,
-            0
-        );
-    }
-
-    function assertEqBalanceState(
-        address owner,
-        uint256 _balanceWSTETH,
         uint256 _balanceUSDC,
-        uint256 _balanceWETH,
-        uint256 _balanceOSQTH,
         uint256 _balanceETH
     ) public view {
-        assertApproxEqAbs(
-            USDC.balanceOf(owner),
-            _balanceUSDC,
-            10,
-            "Balance USDC not equal"
-        );
         assertApproxEqAbs(
             WETH.balanceOf(owner),
             _balanceWETH,
@@ -274,18 +234,11 @@ abstract contract ALMTestBase is Test, Deployers {
             "Balance WETH not equal"
         );
         assertApproxEqAbs(
-            OSQTH.balanceOf(owner),
-            _balanceOSQTH,
+            USDC.balanceOf(owner),
+            _balanceUSDC,
             10,
-            "Balance OSQTH not equal"
+            "Balance USDC not equal"
         );
-        assertApproxEqAbs(
-            WSTETH.balanceOf(owner),
-            _balanceWSTETH,
-            10,
-            "Balance WSTETH not equal"
-        );
-
         assertApproxEqAbs(
             owner.balance,
             _balanceETH,

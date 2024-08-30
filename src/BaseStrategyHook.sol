@@ -25,10 +25,8 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     error NotHookDeployer();
     using CurrencySettler for Currency;
 
-    IERC20 WSTETH = IERC20(ALMBaseLib.WSTETH);
     IWETH WETH = IWETH(ALMBaseLib.WETH);
     IERC20 USDC = IERC20(ALMBaseLib.USDC);
-    IERC20 OSQTH = IERC20(ALMBaseLib.OSQTH);
 
     Id public immutable morphoMarketId;
 
@@ -103,11 +101,11 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
                 afterAddLiquidity: false,
                 beforeRemoveLiquidity: false,
                 afterRemoveLiquidity: false,
-                beforeSwap: false,
-                afterSwap: true,
+                beforeSwap: true,
+                afterSwap: false,
                 beforeDonate: false,
                 afterDonate: false,
-                beforeSwapReturnDelta: false,
+                beforeSwapReturnDelta: true,
                 afterSwapReturnDelta: false,
                 afterAddLiquidityReturnDelta: false,
                 afterRemoveLiquidityReturnDelta: false
@@ -198,10 +196,6 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     //TODO: remove in production
     function logBalances() internal view {
         console.log("> hook balances");
-        if (WSTETH.balanceOf(address(this)) > 0)
-            console.log("WSTETH", WSTETH.balanceOf(address(this)));
-        if (OSQTH.balanceOf(address(this)) > 0)
-            console.log("OSQTH ", OSQTH.balanceOf(address(this)));
         if (USDC.balanceOf(address(this)) > 0)
             console.log("USDC  ", USDC.balanceOf(address(this)));
         if (WETH.balanceOf(address(this)) > 0)
