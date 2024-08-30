@@ -20,7 +20,6 @@ import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {IWETH} from "@forks/IWETH.sol";
 import {IMorpho, Id} from "@forks/morpho/IMorpho.sol";
 import {IALM} from "@src/interfaces/IALM.sol";
-import {IHedgehogLoyaltyMock} from "@src/interfaces/IHedgehogLoyaltyMock.sol";
 
 abstract contract BaseStrategyHook is BaseHook, IALM {
     error NotHookDeployer();
@@ -38,8 +37,6 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
 
     bytes internal constant ZERO_BYTES = bytes("");
     address public immutable hookDeployer;
-
-    IHedgehogLoyaltyMock public loyalty;
 
     uint256 public priceScalingFactor = 2;
     uint256 public cRatio = 2;
@@ -66,9 +63,8 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         performanceFee = _performanceFee;
     }
 
-    function getUserFee(address user) public view returns (uint256) {
-        if (loyalty.isLoyal(user) == 0) return performanceFee;
-        return 0;
+    function getUserFee() public view returns (uint256) {
+        return performanceFee;
     }
 
     mapping(PoolId => int24) lastTick;
@@ -89,11 +85,7 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         lastTick[poolId] = _tick;
     }
 
-    constructor(
-        IPoolManager _poolManager,
-        IHedgehogLoyaltyMock _loyalty
-    ) BaseHook(_poolManager) {
-        loyalty = _loyalty;
+    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
         hookDeployer = msg.sender;
     }
 

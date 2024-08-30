@@ -17,7 +17,6 @@ import {BaseStrategyHook} from "@src/BaseStrategyHook.sol";
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Position as MorphoPosition, Id, Market} from "@forks/morpho/IMorpho.sol";
-import {IHedgehogLoyaltyMock} from "@src/interfaces/IHedgehogLoyaltyMock.sol";
 
 /// @title ALM
 /// @author IVikkk
@@ -27,9 +26,8 @@ contract ALM is BaseStrategyHook, ERC721 {
 
     constructor(
         IPoolManager poolManager,
-        Id _morphoMarketId,
-        IHedgehogLoyaltyMock _loyalty
-    ) BaseStrategyHook(poolManager, _loyalty) ERC721("ALM", "ALM") {
+        Id _morphoMarketId
+    ) BaseStrategyHook(poolManager) ERC721("ALM", "ALM") {
         morphoMarketId = _morphoMarketId;
     }
 
@@ -111,7 +109,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             tickLower: tickLower,
             tickUpper: tickUpper,
             created: block.timestamp,
-            fee: getUserFee(msg.sender)
+            fee: getUserFee()
         });
 
         _mint(to, almId);

@@ -12,8 +12,6 @@ import {ALMTestBase} from "@test/libraries/ALMTestBase.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "v4-core/types/Currency.sol";
 import {ALM} from "@src/ALM.sol";
-import {HedgehogLoyaltyMock} from "@test/libraries/HedgehogLoyaltyMock.sol";
-
 import {IALM} from "@src/interfaces/IALM.sol";
 
 contract ALMTest is ALMTestBase {
@@ -75,17 +73,6 @@ contract ALMTest is ALMTestBase {
         );
         IALM.ALMInfo memory info = hook.getALMInfo(almId);
         assertEq(info.fee, 1e16);
-    }
-
-    function test_deposit_with_loyalty() public {
-        uint256 amountToDeposit = 100 ether;
-        loyalty.setIsLoyal(alice.addr, uint64(block.number));
-
-        deal(address(WSTETH), address(alice.addr), amountToDeposit);
-        vm.prank(alice.addr);
-        almId = hook.deposit(key, amountToDeposit, alice.addr);
-        IALM.ALMInfo memory info = hook.getALMInfo(almId);
-        assertEq(info.fee, 0);
     }
 
     function test_deposit_withdraw_not_alm_owner_revert() public {
@@ -155,8 +142,6 @@ contract ALMTest is ALMTestBase {
     function init_hook() internal {
         router = new HookEnabledSwapRouter(manager);
 
-        loyalty = new HedgehogLoyaltyMock();
-
         address hookAddress = address(
             uint160(
                 Hooks.AFTER_SWAP_FLAG |
@@ -164,11 +149,7 @@ contract ALMTest is ALMTestBase {
                     Hooks.AFTER_INITIALIZE_FLAG
             )
         );
-        deployCodeTo(
-            "ALM.sol",
-            abi.encode(manager, marketId, loyalty),
-            hookAddress
-        );
+        deployCodeTo("ALM.sol", abi.encode(manager, marketId), hookAddress);
         ALM _hook = ALM(hookAddress);
 
         uint160 initialSQRTPrice = TickMath.getSqrtPriceAtTick(-192232);

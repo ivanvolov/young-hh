@@ -17,7 +17,6 @@ import {TestERC20} from "v4-core/test/TestERC20.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {HookEnabledSwapRouter} from "@test/libraries/HookEnabledSwapRouter.sol";
 import {TestAccount, TestAccountLib} from "@test/libraries/TestAccountLib.t.sol";
-import {HedgehogLoyaltyMock} from "@test/libraries/HedgehogLoyaltyMock.sol";
 
 abstract contract ALMTestBase is Test, Deployers {
     using TestAccountLib for TestAccount;
@@ -38,8 +37,6 @@ abstract contract ALMTestBase is Test, Deployers {
     Id marketId;
     IMorpho morpho = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
     uint256 almId;
-
-    HedgehogLoyaltyMock loyalty;
 
     function labelTokens() public {
         WSTETH = TestERC20(ALMBaseLib.WSTETH);
