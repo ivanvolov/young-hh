@@ -16,6 +16,7 @@ import {Currency} from "v4-core/types/Currency.sol";
 import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 
 import {ERC721} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+import {IERC20} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {BaseStrategyHook} from "@src/BaseStrategyHook.sol";
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
@@ -207,48 +208,8 @@ contract ALM is BaseStrategyHook, ERC721 {
         IPoolManager.SwapParams calldata params,
         bytes calldata
     ) external override returns (bytes4, BeforeSwapDelta, uint24) {
-        /**
-        BalanceDelta is a packed value of (currency0Amount, currency1Amount)
-
-        BeforeSwapDelta varies such that it is not sorted by token0 and token1
-        Instead, it is sorted by "specifiedCurrency" and "unspecifiedCurrency"
-
-        Specified Currency => The currency in which the user is specifying the amount they're swapping for
-        Unspecified Currency => The other currency
-
-        For example, in an ETH/USDC pool, there are 4 possible swap cases:
-
-        1. ETH for USDC with Exact Input for Output (amountSpecified = negative value representing ETH)
-        2. ETH for USDC with Exact Output for Input (amountSpecified = positive value representing USDC)
-        3. USDC for ETH with Exact Input for Output (amountSpecified = negative value representing USDC)
-        4. USDC for ETH with Exact Output for Input (amountSpecified = positive value representing ETH)
-    
-        -------
-        
-        Assume zeroForOne = true (without loss of generality)
-        Assume abs(amountSpecified) = 100
-
-        For an exact input swap where amountSpecified is negative (-100)
-            -> specified token = token0
-            -> unspecified token = token1
-            -> we set deltaSpecified = -(-100) = 100
-            -> we set deltaUnspecified = -100
-            -> i.e. hook is owed 100 specified token (token0) by PM (that comes from the user)
-            -> and hook owes 100 unspecified token (token1) to PM (to go to the user)
-    
-        For an exact output swap where amountSpecified is positive (100)
-            -> specified token = token1
-            -> unspecified token = token0
-            -> we set deltaSpecified = -100
-            -> we set deltaUnspecified = 100
-            -> i.e. hook owes 100 specified token (token1) to PM (to go to the user)
-            -> and hook is owed 100 unspecified token (token0) by PM (that comes from the user)
-
-        In either case, we can design BeforeSwapDelta as (-params.amountSpecified, params.amountSpecified)
-    
-    */
-
         //TODO: I will put here 1-1 ration, and not uniswap curve to simplify the code until I fix this.
+        //TODO: Maybe move smth into the afterSwap hook, you know
 
         BeforeSwapDelta beforeSwapDelta = toBeforeSwapDelta(
             int128(-params.amountSpecified), // So `specifiedAmount` = +100
@@ -259,22 +220,14 @@ contract ALM is BaseStrategyHook, ERC721 {
             ? uint256(params.amountSpecified)
             : uint256(-params.amountSpecified);
         if (params.zeroForOne) {
-            // If user is selling Token 0 and buying Token 1
-            console.log("> ETH price go down..."); // we get more eth should return USDC
+            console.log("> WETH price go up...");
+            // If user is selling Token 0 and buying Token 1 (USDC => WETH)
+            // TLDR: Here we got USDC and save it on balance. And just give our ETH back to USER.
 
-            // They will be sending Token 0 to the PM, creating a debit of Token 0 in the PM
-            // We will take actual ERC20 Token 0 from the PM and keep it in the hook
-            // and create an equivalent credit for that Token 0 since it is ours!
-            key.currency0.take(
-                poolManager,
-                address(this),
-                amountInOutPositive,
-                false
-            );
-
-            // We don't have token 1 on our account yet, so we need to borrow USDC from the Morpho.
+            // We don't have token 1 on our account yet, so we need to withdraw WETH from the Morpho.
             // We also need to create a debit so user could take it back from the PM.
-            morphoBorrow(amountInOutPositive, 0);
+            morphoWithdrawCollateral(amountInOutPositive);
+            console.log("> !");
 
             key.currency1.settle(
                 poolManager,
@@ -282,26 +235,13 @@ contract ALM is BaseStrategyHook, ERC721 {
                 amountInOutPositive,
                 false
             );
-
-            // key.currency1.take(
-            //     poolManager,
-            //     address(this),
-            //     amountInOutPositive,
-            //     true
-            // );
-
-            // // They will be receiving Token 1 from the PM, creating a credit of Token 1 in the PM
-            // // We will burn claim tokens for Token 1 from the hook so PM can pay the user
-            // // and create an equivalent debit for Token 1 since it is ours!
-            // key.currency1.settle(
-            //     poolManager,
-            //     address(this),
-            //     amountInOutPositive,
-            //     true
-            // );
+            console.log("> !");
         } else {
-            console.log("> ETH price go up..."); // we get USDC should return ETH
-            revert("ETH price go up, it should not in this test");
+            // If user is selling Token 1 and buying Token 0 (WETH => USDC)
+            // TLDR: Here we borrow USDC at Morpho and give it back. And If we have USDC just also give it back before borrow.
+
+            console.log("> ETH price go down..."); // we get WETH should return USDC
+            revert("!");
             // key.currency0.settle(
             //     poolManager,
             //     address(this),
@@ -317,5 +257,60 @@ contract ALM is BaseStrategyHook, ERC721 {
         }
 
         return (this.beforeSwap.selector, beforeSwapDelta, 0);
+    }
+
+    function afterSwap(
+        address,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        BalanceDelta,
+        bytes calldata
+    ) external override returns (bytes4, int128) {
+        uint256 amountInOutPositive = params.amountSpecified > 0
+            ? uint256(params.amountSpecified)
+            : uint256(-params.amountSpecified);
+
+        if (params.zeroForOne) {
+            console.log("> WETH price go up...");
+            // If user is selling Token 0 and buying Token 1 (USDC => WETH)
+            // TLDR: Here we got USDC and save it on balance. And just give our ETH back to USER.
+
+            // They will be sending Token 0 to the PM, creating a debit of Token 0 in the PM
+            // We will take actual ERC20 Token 0 from the PM and keep it in the hook
+            // and create an equivalent credit for that Token 0 since it is ours!
+            console.log("> !");
+            console.log(USDC.balanceOf(address(poolManager)));
+            console.log(USDC.balanceOf(address(address(this))));
+            key.currency0.take(
+                poolManager,
+                address(this),
+                amountInOutPositive,
+                true
+            );
+            key.currency0.settle(
+                poolManager,
+                address(this),
+                amountInOutPositive,
+                true
+            );
+            key.currency0.take(
+                poolManager,
+                address(this),
+                amountInOutPositive,
+                false
+            );
+            // key.currency0.settle(
+            //     poolManager,
+            //     address(this),
+            //     amountInOutPositive,
+            //     false
+            // );
+            //TODO: make to put USDC to morpho to earn interest rates
+            console.log("> !");
+        } else {
+            console.log("> ETH price go down...");
+            revert("!");
+        }
+        return (this.afterSwap.selector, 0);
     }
 }

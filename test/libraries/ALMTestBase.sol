@@ -12,6 +12,7 @@ import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {IChainlinkOracle} from "@forks/morpho-oracles/IChainlinkOracle.sol";
 import {IMorpho, MarketParams, Position as MorphoPosition, Id} from "@forks/morpho/IMorpho.sol";
 import {IALM} from "@src/interfaces/IALM.sol";
+import {PoolSwapTest} from "v4-core/test/PoolSwapTest.sol";
 
 import {TestERC20} from "v4-core/test/TestERC20.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
@@ -55,35 +56,43 @@ abstract contract ALMTestBase is Test, Deployers {
         vm.startPrank(swapper.addr);
         USDC.approve(address(router), type(uint256).max);
         WETH.approve(address(router), type(uint256).max);
+        USDC.approve(address(swapRouter), type(uint256).max);
+        WETH.approve(address(swapRouter), type(uint256).max);
         vm.stopPrank();
     }
 
     // -- Uniswap V4 -- //
 
-    function swapUSDC_WSTETH_Out(uint256 amountOut) public {
+    function swapWETH_USDC_Out(uint256 amountOut) public {
         vm.prank(swapper.addr);
-        router.swap(
+        swapRouter.swap(
             key,
             IPoolManager.SwapParams(
                 false, // USDC -> WSTETH
                 int256(amountOut),
                 TickMath.MAX_SQRT_PRICE - 1
             ),
-            HookEnabledSwapRouter.TestSettings(false, false),
+            PoolSwapTest.TestSettings({
+                takeClaims: false,
+                settleUsingBurn: false
+            }),
             ZERO_BYTES
         );
     }
 
-    function swapWSTETH_USDC_Out(uint256 amountOut) public {
+    function swapUSDC_WETH_Out(uint256 amountOut) public {
         vm.prank(swapper.addr);
-        router.swap(
+        swapRouter.swap(
             key,
             IPoolManager.SwapParams(
-                true, // WSTETH -> USDC
+                true, // USDC -> WETH
                 int256(amountOut),
                 TickMath.MIN_SQRT_PRICE + 1
             ),
-            HookEnabledSwapRouter.TestSettings(false, false),
+            PoolSwapTest.TestSettings({
+                takeClaims: false,
+                settleUsingBurn: false
+            }),
             ZERO_BYTES
         );
     }
