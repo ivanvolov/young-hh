@@ -8,6 +8,7 @@ import {Hooks} from "v4-core/libraries/Hooks.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {HookEnabledSwapRouter} from "@test/libraries/HookEnabledSwapRouter.sol";
 import {ALMTestBase} from "@test/libraries/ALMTestBase.sol";
+import {ErrorsLib} from "@forks/morpho/libraries/ErrorsLib.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "v4-core/types/Currency.sol";
@@ -42,18 +43,19 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoState(bUSDCmId, alice.addr, 0, 0, 1 ether);
         assertEqBalanceStateZero(alice.addr);
 
-        // // ** Borrow
-        // (, uint256 shares) = morpho.borrow(
-        //     morpho.idToMarketParams(marketId),
-        //     1000 * 1e6,
-        //     0,
-        //     alice.addr,
-        //     alice.addr
-        // );
+        // ** Borrow
+        uint256 borrowUSDC = 4000 * 1e6;
+        (, uint256 shares) = morpho.borrow(
+            morpho.idToMarketParams(bUSDCmId),
+            borrowUSDC,
+            0,
+            alice.addr,
+            alice.addr
+        );
 
-        // assertEqMorphoState(alice.addr, 0, shares, 1 ether);
-        // assertEqBalanceState(alice.addr, 0, 1000 * 1e6);
-        // vm.stopPrank();
+        assertEqMorphoState(bUSDCmId, alice.addr, 0, shares, 1 ether);
+        assertEqBalanceState(alice.addr, 0, borrowUSDC);
+        vm.stopPrank();
     }
 
     uint256 amountToDeposit = 100 ether;
@@ -63,12 +65,10 @@ contract ALMTest is ALMTestBase {
         vm.prank(alice.addr);
         almId = hook.deposit(key, amountToDeposit, alice.addr);
 
-        // assertALMV4PositionLiquidity(almId, 11433916692172150);
         assertEqBalanceStateZero(alice.addr);
         assertEqBalanceStateZero(address(hook));
-        assertEqMorphoState(bUSDCmId, address(hook), 0, 0, amountToDeposit);
-        // IALM.ALMInfo memory info = hook.getALMInfo(almId);
-        // assertEq(info.fee, 1e16);
+        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDeposit);
+        assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
     }
 
     function test_swap_price_up() public {
@@ -92,25 +92,27 @@ contract ALMTest is ALMTestBase {
         );
     }
 
+    uint256 wethToSwap = 1 ether;
+
     function test_swap_price_down() public {
         test_deposit();
 
-        deal(address(WETH), address(swapper.addr), 1 ether);
-        assertEqBalanceState(swapper.addr, 1 ether, 0);
+        deal(address(WETH), address(swapper.addr), wethToSwap);
+        assertEqBalanceState(swapper.addr, wethToSwap, 0);
 
-        (, uint256 deltaWETH) = swapWETH_USDC_Out(1 ether);
+        (uint256 deltaUSDC, ) = swapWETH_USDC_Out(wethToSwap);
 
-        // assertEqBalanceState(swapper.addr, 1 ether, 0);
-        // assertEqBalanceState(address(hook), 0, 0);
+        assertEqBalanceState(swapper.addr, 0, 4487000000);
+        assertEqBalanceState(address(hook), 0, 0);
 
-        // assertEqMorphoState(bWETHmId, address(hook), 0, 0, 1 ether);
-        // assertEqMorphoState(
-        //     bUSDCmId,
-        //     address(hook),
-        //     0,
-        //     0,
-        //     amountToDeposit - deltaWETH
-        // );
+        assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
+        assertEqMorphoA(
+            bUSDCmId,
+            address(hook),
+            0,
+            deltaUSDC,
+            amountToDeposit + wethToSwap
+        );
     }
 
     // -- Helpers --
@@ -155,7 +157,7 @@ contract ALMTest is ALMTestBase {
     function create_and_seed_morpho_markets() internal {
         address oracle = 0x48F7E36EB6B826B2dF4B2E630B62Cd25e89E40e2;
 
-        modifyMockOracle(oracle, 1 * 1e24); //4487 usdc for eth
+        modifyMockOracle(oracle, 4487851340816804029821232973); //4487 usdc for eth
 
         bUSDCmId = create_morpho_market(
             address(USDC),
@@ -164,6 +166,7 @@ contract ALMTest is ALMTestBase {
             oracle
         );
 
+        // Providing some ETH
         provideLiquidityToMorpho(bUSDCmId, 1000 ether);
 
         bWETHmId = create_morpho_market(

@@ -29,8 +29,8 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     IWETH WETH = IWETH(ALMBaseLib.WETH);
     IERC20 USDC = IERC20(ALMBaseLib.USDC);
 
-    Id public immutable borrowWETHmarketId;
-    Id public immutable borrowUSDCmarketId;
+    Id public immutable bWETHmId;
+    Id public immutable bUSDCmId;
 
     IMorpho public constant morpho =
         IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
@@ -258,7 +258,7 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         );
     }
 
-    function expectedSupplyAssets(
+    function supplyAssets(
         Id morphoMarketId,
         address owner
     ) internal view returns (uint256) {

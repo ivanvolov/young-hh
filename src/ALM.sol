@@ -31,11 +31,11 @@ contract ALM is BaseStrategyHook, ERC721 {
 
     constructor(
         IPoolManager manager,
-        Id _borrowWETHmarketId,
-        Id _borrowUSDCmarketId
+        Id _bWETHmId,
+        Id _bUSDCmId
     ) BaseStrategyHook(manager) ERC721("ALM", "ALM") {
-        borrowWETHmarketId = _borrowWETHmarketId;
-        borrowUSDCmarketId = _borrowUSDCmarketId;
+        bWETHmId = _bWETHmId;
+        bUSDCmId = _bUSDCmId;
     }
 
     function afterInitialize(
@@ -77,10 +77,7 @@ contract ALM is BaseStrategyHook, ERC721 {
         if (amount == 0) revert ZeroLiquidity();
         WETH.transferFrom(msg.sender, address(this), amount);
 
-        morphoSupplyCollateral(
-            borrowUSDCmarketId,
-            WETH.balanceOf(address(this))
-        );
+        morphoSupplyCollateral(bUSDCmId, WETH.balanceOf(address(this)));
         almId = almIdCounter;
 
         // almInfo[almId] = ALMInfo({
@@ -106,14 +103,13 @@ contract ALM is BaseStrategyHook, ERC721 {
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
         bytes calldata
-    ) external override returns (bytes4, BeforeSwapDelta, uint24) {
+    )
+        external
+        override
+        returns (bytes4, BeforeSwapDelta beforeSwapDelta, uint24)
+    {
         //TODO: I will put here 1-1 ration, and not uniswap curve to simplify the code until I fix this.
         //TODO: Maybe move smth into the afterSwap hook, you know
-
-        BeforeSwapDelta beforeSwapDelta = toBeforeSwapDelta(
-            int128(-params.amountSpecified), // So `specifiedAmount` = +100
-            int128(params.amountSpecified) // Unspecified amount (output delta) = -100
-        );
 
         uint256 amountInOutPositive = params.amountSpecified > 0
             ? uint256(params.amountSpecified)
@@ -132,72 +128,75 @@ contract ALM is BaseStrategyHook, ERC721 {
                 amountInOutPositive,
                 false
             );
-            morphoSupplyCollateral(borrowWETHmarketId, amountInOutPositive);
+            morphoSupplyCollateral(bWETHmId, amountInOutPositive);
 
             // We don't have token 1 on our account yet, so we need to withdraw WETH from the Morpho.
             // We also need to create a debit so user could take it back from the PM.
-            morphoWithdrawCollateral(borrowUSDCmarketId, amountInOutPositive);
+            morphoWithdrawCollateral(bUSDCmId, amountInOutPositive);
             key.currency1.settle(
                 poolManager,
                 address(this),
                 amountInOutPositive,
                 false
             );
+
+            beforeSwapDelta = toBeforeSwapDelta(
+                int128(-params.amountSpecified), // So `specifiedAmount` = +100
+                int128(params.amountSpecified) // Unspecified amount (output delta) = -100
+            );
         } else {
             console.log("> ETH price go down...");
             // If user is selling Token 1 and buying Token 0 (WETH => USDC)
             // TLDR: Here we borrow USDC at Morpho and give it back.
 
-            // Put extra ETH to Morpho
-            key.currency1.take(
-                poolManager,
-                address(this),
-                amountInOutPositive,
-                false
-            );
-            morphoSupplyCollateral(borrowUSDCmarketId, amountInOutPositive);
+            //TODO: this is mock, do it not mock;)
+            uint256 wethIn = amountInOutPositive;
+            uint256 usdcOut = ((amountInOutPositive * 4487) / 1e12);
 
-            // If we have USDC just also give it back before borrow.
-            uint256 usdcCollateral = expectedSupplyAssets(
-                borrowWETHmarketId,
-                address(this)
-            );
-
-            console.log("usdcCollateral", usdcCollateral);
-            if (usdcCollateral > 0) {
-                if (usdcCollateral > amountInOutPositive) {
-                    morphoWithdrawCollateral(
-                        borrowWETHmarketId,
-                        amountInOutPositive
-                    );
-                } else {
-                    console.log("(1)");
-                    morphoWithdrawCollateral(
-                        borrowWETHmarketId,
-                        usdcCollateral
-                    );
-                    console.log("(2)");
-                    morphoBorrow(
-                        borrowUSDCmarketId,
-                        amountInOutPositive - usdcCollateral,
-                        0
-                    );
-                }
+            if (params.amountSpecified > 0) {
+                console.log("> amount specified positive");
+                beforeSwapDelta = toBeforeSwapDelta(
+                    -int128(uint128(usdcOut)), // specified token = token0
+                    int128(uint128(wethIn)) // unspecified token = token1
+                );
             } else {
-                console.log("(3)");
-                morphoBorrow(borrowUSDCmarketId, 1, 0);
+                console.log("> amount specified negative");
+                beforeSwapDelta = toBeforeSwapDelta(
+                    int128(uint128(wethIn)), // specified token = token1
+                    -int128(uint128(usdcOut)) // unspecified token = token0
+                );
             }
-            console.log("(3+)");
+
+            // Put extra ETH to Morpho
+            key.currency1.take(poolManager, address(this), wethIn, false);
+            morphoSupplyCollateral(bUSDCmId, wethIn);
+
+            // Ensure we have enough USDC. Redeem from reserves and borrow if needed.
+            redeemAndBorrow(usdcOut);
             logBalances();
             console.log("(4)");
-            key.currency0.settle(
-                poolManager,
-                address(this),
-                amountInOutPositive,
-                false
-            );
+            key.currency0.settle(poolManager, address(this), usdcOut, false);
+            console.log("(5)");
         }
 
         return (this.beforeSwap.selector, beforeSwapDelta, 0);
+    }
+
+    function redeemAndBorrow(uint256 usdcOut) internal {
+        uint256 usdcCollateral = supplyAssets(bWETHmId, address(this));
+        console.log("usdcCollateral", usdcCollateral);
+        if (usdcCollateral > 0) {
+            if (usdcCollateral > usdcOut) {
+                morphoWithdrawCollateral(bWETHmId, usdcOut);
+            } else {
+                console.log("(1)");
+                morphoWithdrawCollateral(bWETHmId, usdcCollateral);
+                console.log("(2)");
+                morphoBorrow(bUSDCmId, usdcOut - usdcCollateral, 0);
+            }
+        } else {
+            console.log("(3)");
+            morphoBorrow(bUSDCmId, usdcOut, 0);
+        }
     }
 }
