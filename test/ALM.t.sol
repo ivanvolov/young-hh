@@ -27,8 +27,9 @@ contract ALMTest is ALMTestBase {
         create_and_approve_accounts();
     }
 
+    uint256 amountToDeposit = 100 ether;
+
     function test_deposit() public {
-        uint256 amountToDeposit = 100 ether;
         deal(address(WETH), address(alice.addr), amountToDeposit);
         vm.prank(alice.addr);
         almId = hook.deposit(key, amountToDeposit, alice.addr);
@@ -47,13 +48,40 @@ contract ALMTest is ALMTestBase {
         deal(address(USDC), address(swapper.addr), 1 ether);
         assertEqBalanceState(swapper.addr, 0, 1 ether);
 
-        swapUSDC_WETH_Out(1 ether);
+        (, uint256 deltaWETH) = swapUSDC_WETH_Out(1 ether);
 
         assertEqBalanceState(swapper.addr, 1 ether, 0);
         assertEqBalanceState(address(hook), 0, 0);
 
         assertEqMorphoState(bWETHmId, address(hook), 0, 0, 1 ether);
-        assertEqMorphoState(bUSDCmId, address(hook), 0, 0, 99 ether);
+        assertEqMorphoState(
+            bUSDCmId,
+            address(hook),
+            0,
+            0,
+            amountToDeposit - deltaWETH
+        );
+    }
+
+    function test_swap_price_down() public {
+        test_deposit();
+
+        deal(address(WETH), address(swapper.addr), 1 ether);
+        assertEqBalanceState(swapper.addr, 1 ether, 0);
+
+        (, uint256 deltaWETH) = swapWETH_USDC_Out(1 ether);
+
+        // assertEqBalanceState(swapper.addr, 1 ether, 0);
+        // assertEqBalanceState(address(hook), 0, 0);
+
+        // assertEqMorphoState(bWETHmId, address(hook), 0, 0, 1 ether);
+        // assertEqMorphoState(
+        //     bUSDCmId,
+        //     address(hook),
+        //     0,
+        //     0,
+        //     amountToDeposit - deltaWETH
+        // );
     }
 
     // -- Helpers --

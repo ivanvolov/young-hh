@@ -13,6 +13,7 @@ import {IChainlinkOracle} from "@forks/morpho-oracles/IChainlinkOracle.sol";
 import {IMorpho, MarketParams, Position as MorphoPosition, Id} from "@forks/morpho/IMorpho.sol";
 import {IALM} from "@src/interfaces/IALM.sol";
 import {PoolSwapTest} from "v4-core/test/PoolSwapTest.sol";
+import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
 
 import {TestERC20} from "v4-core/test/TestERC20.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
@@ -65,10 +66,11 @@ abstract contract ALMTestBase is Test, Deployers {
     }
 
     // -- Uniswap V4 -- //
-
-    function swapWETH_USDC_Out(uint256 amountOut) public {
+    function swapWETH_USDC_Out(
+        uint256 amountOut
+    ) public returns (uint256, uint256) {
         vm.prank(swapper.addr);
-        swapRouter.swap(
+        BalanceDelta delta = swapRouter.swap(
             key,
             IPoolManager.SwapParams(
                 false, // WETH -> USDC
@@ -81,11 +83,17 @@ abstract contract ALMTestBase is Test, Deployers {
             }),
             ZERO_BYTES
         );
+        return (
+            uint256(int256(delta.amount0())),
+            uint256(int256(delta.amount1()))
+        );
     }
 
-    function swapUSDC_WETH_Out(uint256 amountOut) public {
+    function swapUSDC_WETH_Out(
+        uint256 amountOut
+    ) public returns (uint256, uint256) {
         vm.prank(swapper.addr);
-        swapRouter.swap(
+        BalanceDelta delta = swapRouter.swap(
             key,
             IPoolManager.SwapParams(
                 true, // USDC -> WETH
@@ -97,6 +105,10 @@ abstract contract ALMTestBase is Test, Deployers {
                 settleUsingBurn: false
             }),
             ZERO_BYTES
+        );
+        return (
+            uint256(int256(delta.amount0())),
+            uint256(int256(delta.amount1()))
         );
     }
 

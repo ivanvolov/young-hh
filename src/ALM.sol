@@ -137,14 +137,12 @@ contract ALM is BaseStrategyHook, ERC721 {
             // We don't have token 1 on our account yet, so we need to withdraw WETH from the Morpho.
             // We also need to create a debit so user could take it back from the PM.
             morphoWithdrawCollateral(borrowUSDCmarketId, amountInOutPositive);
-            logBalances();
             key.currency1.settle(
                 poolManager,
                 address(this),
                 amountInOutPositive,
                 false
             );
-            console.log("!");
         } else {
             console.log("> ETH price go down...");
             // If user is selling Token 1 and buying Token 0 (WETH => USDC)
