@@ -20,6 +20,7 @@ import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {IWETH} from "@forks/IWETH.sol";
 import {IMorpho, Id} from "@forks/morpho/IMorpho.sol";
 import {IALM} from "@src/interfaces/IALM.sol";
+import {MorphoBalancesLib} from "@forks/morpho/libraries/MorphoBalancesLib.sol";
 
 abstract contract BaseStrategyHook is BaseHook, IALM {
     error NotHookDeployer();
@@ -255,6 +256,18 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
             address(this),
             ZERO_BYTES
         );
+    }
+
+    function expectedSupplyAssets(
+        Id morphoMarketId,
+        address owner
+    ) internal view returns (uint256) {
+        return
+            MorphoBalancesLib.expectedSupplyAssets(
+                morpho,
+                morpho.idToMarketParams(morphoMarketId),
+                owner
+            );
     }
 
     function morphoSync(Id morphoMarketId) internal {

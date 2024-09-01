@@ -146,25 +146,56 @@ contract ALM is BaseStrategyHook, ERC721 {
         } else {
             console.log("> ETH price go down...");
             // If user is selling Token 1 and buying Token 0 (WETH => USDC)
-            // TLDR: Here we borrow USDC at Morpho and give it back. And If we have USDC just also give it back before borrow.
+            // TLDR: Here we borrow USDC at Morpho and give it back.
 
-            //TODO: next we will deal with this shit later. Especially this morpho bulshit calculations lag.
-            // morphoBorrow(amountInOutPositive, 0);
-            // key.currency0.settle(
-            //     poolManager,
-            //     address(this),
-            //     amountInOutPositive,
-            //     false
-            // );
+            // Put extra ETH to Morpho
+            key.currency1.take(
+                poolManager,
+                address(this),
+                amountInOutPositive,
+                false
+            );
+            morphoSupplyCollateral(borrowUSDCmarketId, amountInOutPositive);
 
-            // // Put extra ETH to Morpho
-            // key.currency1.take(
-            //     poolManager,
-            //     address(this),
-            //     amountInOutPositive,
-            //     false
-            // );
-            // morphoSupplyCollateral(amountInOutPositive);
+            // If we have USDC just also give it back before borrow.
+            uint256 usdcCollateral = expectedSupplyAssets(
+                borrowWETHmarketId,
+                address(this)
+            );
+
+            console.log("usdcCollateral", usdcCollateral);
+            if (usdcCollateral > 0) {
+                if (usdcCollateral > amountInOutPositive) {
+                    morphoWithdrawCollateral(
+                        borrowWETHmarketId,
+                        amountInOutPositive
+                    );
+                } else {
+                    console.log("(1)");
+                    morphoWithdrawCollateral(
+                        borrowWETHmarketId,
+                        usdcCollateral
+                    );
+                    console.log("(2)");
+                    morphoBorrow(
+                        borrowUSDCmarketId,
+                        amountInOutPositive - usdcCollateral,
+                        0
+                    );
+                }
+            } else {
+                console.log("(3)");
+                morphoBorrow(borrowUSDCmarketId, 1, 0);
+            }
+            console.log("(3+)");
+            logBalances();
+            console.log("(4)");
+            key.currency0.settle(
+                poolManager,
+                address(this),
+                amountInOutPositive,
+                false
+            );
         }
 
         return (this.beforeSwap.selector, beforeSwapDelta, 0);

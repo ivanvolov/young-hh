@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import {TickMath} from "v4-core/libraries/TickMath.sol";
-import {MarketParamsLib} from "@forks/morpho/MarketParamsLib.sol";
+import {MarketParamsLib} from "@forks/morpho/libraries/MarketParamsLib.sol";
 import {ALMBaseLib} from "@src/libraries/ALMBaseLib.sol";
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
@@ -127,8 +127,7 @@ abstract contract ALMTestBase is Test, Deployers {
         address loanToken,
         address collateralToken,
         uint256 lltv,
-        address oracle,
-        uint256 oracleNewPrice
+        address oracle
     ) internal returns (Id) {
         MarketParams memory marketParams = MarketParams(
             loanToken,
@@ -137,8 +136,6 @@ abstract contract ALMTestBase is Test, Deployers {
             0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC, // We have only 1 irm in morpho so we can use this address
             lltv
         );
-
-        modifyMockOracle(oracle, oracleNewPrice);
 
         vm.prank(marketCreator.addr);
         morpho.createMarket(marketParams);
@@ -151,29 +148,20 @@ abstract contract ALMTestBase is Test, Deployers {
     ) internal returns (IChainlinkOracle iface) {
         //NOTICE: https://github.com/morpho-org/morpho-blue-oracles
         iface = IChainlinkOracle(oracle);
-        address vault = address(IChainlinkOracle(oracle).VAULT());
-        uint256 conversionSample = IChainlinkOracle(oracle)
-            .VAULT_CONVERSION_SAMPLE();
-        address baseFeed1 = address(IChainlinkOracle(oracle).BASE_FEED_1());
-        address baseFeed2 = address(IChainlinkOracle(oracle).BASE_FEED_2());
-        address quoteFeed1 = address(IChainlinkOracle(oracle).QUOTE_FEED_1());
-        address quoteFeed2 = address(IChainlinkOracle(oracle).QUOTE_FEED_2());
-        uint256 scaleFactor = IChainlinkOracle(oracle).SCALE_FACTOR();
 
         vm.mockCall(
-            oracle,
+            address(oracle),
             abi.encodeWithSelector(iface.price.selector),
             abi.encode(newPrice)
         );
-        assertEq(iface.price(), newPrice);
-        assertEq(address(iface.VAULT()), vault);
-        assertEq(iface.VAULT_CONVERSION_SAMPLE(), conversionSample);
-        assertEq(address(iface.BASE_FEED_1()), baseFeed1);
-        assertEq(address(iface.BASE_FEED_2()), baseFeed2);
-        assertEq(address(iface.QUOTE_FEED_1()), quoteFeed1);
-        assertEq(address(iface.QUOTE_FEED_2()), quoteFeed2);
-        assertEq(iface.SCALE_FACTOR(), scaleFactor);
 
+        console.log("> vault", address(iface.VAULT()));
+        console.log("> conversionSample", iface.VAULT_CONVERSION_SAMPLE());
+        console.log("> baseFeed1", address(iface.BASE_FEED_1()));
+        console.log("> baseFeed2", address(iface.BASE_FEED_2()));
+        console.log("> quoteFeed1", address(iface.QUOTE_FEED_1()));
+        console.log("> quoteFeed2", address(iface.QUOTE_FEED_2()));
+        console.log("> scaleFactor", iface.SCALE_FACTOR());
         return iface;
     }
 

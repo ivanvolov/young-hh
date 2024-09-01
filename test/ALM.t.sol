@@ -27,6 +27,35 @@ contract ALMTest is ALMTestBase {
         create_and_approve_accounts();
     }
 
+    function test_morpho_blue_markets() public {
+        vm.startPrank(alice.addr);
+
+        // ** Supply collateral
+        deal(address(WETH), address(alice.addr), 1 ether);
+        morpho.supplyCollateral(
+            morpho.idToMarketParams(bUSDCmId),
+            1 ether,
+            alice.addr,
+            ""
+        );
+
+        assertEqMorphoState(bUSDCmId, alice.addr, 0, 0, 1 ether);
+        assertEqBalanceStateZero(alice.addr);
+
+        // // ** Borrow
+        // (, uint256 shares) = morpho.borrow(
+        //     morpho.idToMarketParams(marketId),
+        //     1000 * 1e6,
+        //     0,
+        //     alice.addr,
+        //     alice.addr
+        // );
+
+        // assertEqMorphoState(alice.addr, 0, shares, 1 ether);
+        // assertEqBalanceState(alice.addr, 0, 1000 * 1e6);
+        // vm.stopPrank();
+    }
+
     uint256 amountToDeposit = 100 ether;
 
     function test_deposit() public {
@@ -119,17 +148,20 @@ contract ALMTest is ALMTestBase {
         hook = IALM(hookAddress);
 
         // This is needed in order to simulate proper accounting
-        deal(address(USDC), address(manager), 100000 ether);
-        deal(address(WETH), address(manager), 100 ether);
+        deal(address(USDC), address(manager), 1000 ether);
+        deal(address(WETH), address(manager), 1000 ether);
     }
 
     function create_and_seed_morpho_markets() internal {
+        address oracle = 0x48F7E36EB6B826B2dF4B2E630B62Cd25e89E40e2;
+
+        modifyMockOracle(oracle, 1 * 1e24); //4487 usdc for eth
+
         bUSDCmId = create_morpho_market(
             address(USDC),
             address(WETH),
             915000000000000000,
-            0x48F7E36EB6B826B2dF4B2E630B62Cd25e89E40e2, //TODO: maybe more oracles in the future
-            1 * 1e24 //4487 usdc for eth
+            oracle
         );
 
         provideLiquidityToMorpho(bUSDCmId, 1000 ether);
@@ -138,8 +170,7 @@ contract ALMTest is ALMTestBase {
             address(WETH),
             address(USDC),
             915000000000000000,
-            0x48F7E36EB6B826B2dF4B2E630B62Cd25e89E40e2,
-            1 * 1e24 //4487 usdc for eth
+            oracle
         );
 
         // We won't provide WETH cause we will not borrow it from HERE. This market is only for interest mining.
