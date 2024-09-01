@@ -93,7 +93,7 @@ abstract contract ALMTestBase is Test, Deployers {
         );
     }
 
-    function swapUSDC_WETH_Out(
+    function swapUSDC_WETH_In(
         uint256 amountOut
     ) public returns (uint256, uint256) {
         vm.prank(swapper.addr);
@@ -101,7 +101,7 @@ abstract contract ALMTestBase is Test, Deployers {
             key,
             IPoolManager.SwapParams(
                 true, // USDC -> WETH
-                int256(amountOut),
+                -int256(amountOut),
                 TickMath.MIN_SQRT_PRICE + 1
             ),
             PoolSwapTest.TestSettings({

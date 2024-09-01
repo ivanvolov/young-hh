@@ -58,51 +58,47 @@ contract ALMTest is ALMTestBase {
         vm.stopPrank();
     }
 
-    uint256 amountToDeposit = 100 ether;
+    uint256 amountToDep = 100 ether;
 
     function test_deposit() public {
-        deal(address(WETH), address(alice.addr), amountToDeposit);
+        deal(address(WETH), address(alice.addr), amountToDep);
         vm.prank(alice.addr);
-        almId = hook.deposit(key, amountToDeposit, alice.addr);
+        almId = hook.deposit(key, amountToDep, alice.addr);
 
         assertEqBalanceStateZero(alice.addr);
         assertEqBalanceStateZero(address(hook));
-        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDeposit);
+        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep);
         assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
     }
 
     function test_swap_price_up() public {
+        uint256 usdcToSwap = 4487 * 1e6;
         test_deposit();
 
-        deal(address(USDC), address(swapper.addr), 1 ether);
-        assertEqBalanceState(swapper.addr, 0, 1 ether);
+        deal(address(USDC), address(swapper.addr), usdcToSwap);
+        assertEqBalanceState(swapper.addr, 0, usdcToSwap);
 
-        (, uint256 deltaWETH) = swapUSDC_WETH_Out(1 ether);
+        (, uint256 deltaWETH) = swapUSDC_WETH_In(usdcToSwap);
+        assertEq(deltaWETH, 1 ether);
 
-        assertEqBalanceState(swapper.addr, 1 ether, 0);
+        assertEqBalanceState(swapper.addr, deltaWETH, 0);
         assertEqBalanceState(address(hook), 0, 0);
 
-        assertEqMorphoState(bWETHmId, address(hook), 0, 0, 1 ether);
-        assertEqMorphoState(
-            bUSDCmId,
-            address(hook),
-            0,
-            0,
-            amountToDeposit - deltaWETH
-        );
+        assertEqMorphoA(bWETHmId, address(hook), 0, 0, usdcToSwap);
+        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep - deltaWETH);
     }
 
-    uint256 wethToSwap = 1 ether;
-
     function test_swap_price_down() public {
+        uint256 wethToSwap = 1 ether;
         test_deposit();
 
         deal(address(WETH), address(swapper.addr), wethToSwap);
         assertEqBalanceState(swapper.addr, wethToSwap, 0);
 
         (uint256 deltaUSDC, ) = swapWETH_USDC_Out(wethToSwap);
+        assertEq(deltaUSDC, 4487 * 1e6);
 
-        assertEqBalanceState(swapper.addr, 0, 4487000000);
+        assertEqBalanceState(swapper.addr, 0, deltaUSDC);
         assertEqBalanceState(address(hook), 0, 0);
 
         assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
@@ -111,7 +107,7 @@ contract ALMTest is ALMTestBase {
             address(hook),
             0,
             deltaUSDC,
-            amountToDeposit + wethToSwap
+            amountToDep + wethToSwap
         );
     }
 

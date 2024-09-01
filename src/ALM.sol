@@ -108,50 +108,46 @@ contract ALM is BaseStrategyHook, ERC721 {
         override
         returns (bytes4, BeforeSwapDelta beforeSwapDelta, uint24)
     {
-        //TODO: I will put here 1-1 ration, and not uniswap curve to simplify the code until I fix this.
-        //TODO: Maybe move smth into the afterSwap hook, you know
-
-        uint256 amountInOutPositive = params.amountSpecified > 0
-            ? uint256(params.amountSpecified)
-            : uint256(-params.amountSpecified);
         if (params.zeroForOne) {
             console.log("> WETH price go up...");
             // If user is selling Token 0 and buying Token 1 (USDC => WETH)
             // TLDR: Here we got USDC and save it on balance. And just give our ETH back to USER.
 
+            //TODO: this is mock, do it not mock;) And this is not right, cause we have fucking specified amount In and Out
+            uint256 usdcIn = uint256(-params.amountSpecified);
+            uint256 wethOut = ((usdcIn * 1e12) / 4487);
+
+            if (params.amountSpecified > 0) {
+                console.log("> amount specified positive");
+                beforeSwapDelta = toBeforeSwapDelta(
+                    -int128(uint128(wethOut)), // specified token = token1
+                    int128(uint128(usdcIn)) // unspecified token = token0
+                );
+            } else {
+                console.log("> amount specified negative");
+                beforeSwapDelta = toBeforeSwapDelta(
+                    int128(uint128(usdcIn)), // specified token = token0
+                    -int128(uint128(wethOut)) // unspecified token = token1
+                );
+            }
+
             // They will be sending Token 0 to the PM, creating a debit of Token 0 in the PM
-            // We will take actual ERC20 Token 0 from the PM and keep it in the hook
-            // and create an equivalent credit for that Token 0 since it is ours!
-            key.currency0.take(
-                poolManager,
-                address(this),
-                amountInOutPositive,
-                false
-            );
-            morphoSupplyCollateral(bWETHmId, amountInOutPositive);
+            // We will take actual ERC20 Token 0 from the PM and keep it in the hook and create an equivalent credit for that Token 0 since it is ours!
+            key.currency0.take(poolManager, address(this), usdcIn, false);
+            morphoSupplyCollateral(bWETHmId, usdcIn);
 
             // We don't have token 1 on our account yet, so we need to withdraw WETH from the Morpho.
             // We also need to create a debit so user could take it back from the PM.
-            morphoWithdrawCollateral(bUSDCmId, amountInOutPositive);
-            key.currency1.settle(
-                poolManager,
-                address(this),
-                amountInOutPositive,
-                false
-            );
-
-            beforeSwapDelta = toBeforeSwapDelta(
-                int128(-params.amountSpecified), // So `specifiedAmount` = +100
-                int128(params.amountSpecified) // Unspecified amount (output delta) = -100
-            );
+            morphoWithdrawCollateral(bUSDCmId, wethOut);
+            key.currency1.settle(poolManager, address(this), wethOut, false);
         } else {
             console.log("> ETH price go down...");
             // If user is selling Token 1 and buying Token 0 (WETH => USDC)
             // TLDR: Here we borrow USDC at Morpho and give it back.
 
             //TODO: this is mock, do it not mock;)
-            uint256 wethIn = amountInOutPositive;
-            uint256 usdcOut = ((amountInOutPositive * 4487) / 1e12);
+            uint256 wethIn = uint256(params.amountSpecified);
+            uint256 usdcOut = ((wethIn * 4487) / 1e12);
 
             if (params.amountSpecified > 0) {
                 console.log("> amount specified positive");
