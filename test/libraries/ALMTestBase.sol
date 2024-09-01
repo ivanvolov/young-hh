@@ -33,7 +33,8 @@ abstract contract ALMTestBase is Test, Deployers {
     TestAccount swapper;
 
     HookEnabledSwapRouter router;
-    Id marketId;
+    Id bWETHmId;
+    Id bUSDCmId;
     IMorpho morpho = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
     uint256 almId;
 
@@ -42,6 +43,8 @@ abstract contract ALMTestBase is Test, Deployers {
         vm.label(address(WETH), "WETH");
         USDC = TestERC20(ALMBaseLib.USDC);
         vm.label(address(USDC), "USDC");
+        marketCreator = TestAccountLib.createTestAccount("marketCreator");
+        morphoLpProvider = TestAccountLib.createTestAccount("morphoLpProvider");
     }
 
     function create_and_approve_accounts() public {
@@ -68,7 +71,7 @@ abstract contract ALMTestBase is Test, Deployers {
         swapRouter.swap(
             key,
             IPoolManager.SwapParams(
-                false, // USDC -> WSTETH
+                false, // WETH -> USDC
                 int256(amountOut),
                 TickMath.MAX_SQRT_PRICE - 1
             ),
@@ -112,29 +115,29 @@ abstract contract ALMTestBase is Test, Deployers {
         address loanToken,
         address collateralToken,
         uint256 lltv,
+        address oracle,
         uint256 oracleNewPrice
-    ) internal {
-        marketCreator = TestAccountLib.createTestAccount("marketCreator");
-        morphoLpProvider = TestAccountLib.createTestAccount("morphoLpProvider");
+    ) internal returns (Id) {
         MarketParams memory marketParams = MarketParams(
             loanToken,
             collateralToken,
-            0x48F7E36EB6B826B2dF4B2E630B62Cd25e89E40e2, // This oracle is hardcoded for now
+            oracle,
             0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC, // We have only 1 irm in morpho so we can use this address
             lltv
         );
 
-        modifyMockOracle(address(marketParams.oracle), oracleNewPrice);
+        modifyMockOracle(oracle, oracleNewPrice);
 
         vm.prank(marketCreator.addr);
         morpho.createMarket(marketParams);
-        marketId = MarketParamsLib.id(marketParams);
+        return MarketParamsLib.id(marketParams);
     }
 
     function modifyMockOracle(
         address oracle,
         uint256 newPrice
     ) internal returns (IChainlinkOracle iface) {
+        //NOTICE: https://github.com/morpho-org/morpho-blue-oracles
         iface = IChainlinkOracle(oracle);
         address vault = address(IChainlinkOracle(oracle).VAULT());
         uint256 conversionSample = IChainlinkOracle(oracle)
@@ -162,20 +165,26 @@ abstract contract ALMTestBase is Test, Deployers {
         return iface;
     }
 
-    function provideLiquidityToMorpho(address asset, uint256 amount) internal {
-        vm.startPrank(morphoLpProvider.addr);
-        deal(asset, morphoLpProvider.addr, amount);
+    function provideLiquidityToMorpho(Id marketId, uint256 amount) internal {
+        MarketParams memory marketParams = morpho.idToMarketParams(marketId);
+        console.log(">>", marketParams.loanToken);
 
-        TestERC20(asset).approve(address(morpho), type(uint256).max);
+        vm.startPrank(morphoLpProvider.addr);
+        deal(marketParams.loanToken, morphoLpProvider.addr, amount);
+
+        TestERC20(marketParams.loanToken).approve(
+            address(morpho),
+            type(uint256).max
+        );
         (, uint256 shares) = morpho.supply(
-            morpho.idToMarketParams(marketId),
+            marketParams,
             amount,
             0,
             morphoLpProvider.addr,
             ""
         );
 
-        assertEqMorphoState(morphoLpProvider.addr, shares, 0, 0);
+        assertEqMorphoState(marketId, morphoLpProvider.addr, shares, 0, 0);
         assertEqBalanceStateZero(morphoLpProvider.addr);
         vm.stopPrank();
     }
@@ -191,6 +200,7 @@ abstract contract ALMTestBase is Test, Deployers {
     }
 
     function assertEqMorphoState(
+        Id marketId,
         address owner,
         uint256 _supplyShares,
         uint256 _borrowShares,
@@ -227,7 +237,7 @@ abstract contract ALMTestBase is Test, Deployers {
         uint256 _balanceWETH,
         uint256 _balanceUSDC
     ) public view {
-        assertEqBalanceState(owner, _balanceWETH, _balanceUSDC);
+        assertEqBalanceState(owner, _balanceWETH, _balanceUSDC, 0);
     }
 
     function assertEqBalanceState(

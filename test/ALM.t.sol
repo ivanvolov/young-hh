@@ -22,7 +22,7 @@ contract ALMTest is ALMTestBase {
         deployFreshManagerAndRouters();
 
         labelTokens();
-        create_and_seed_morpho_market();
+        create_and_seed_morpho_markets();
         init_hook();
         create_and_approve_accounts();
     }
@@ -36,7 +36,7 @@ contract ALMTest is ALMTestBase {
         // assertALMV4PositionLiquidity(almId, 11433916692172150);
         assertEqBalanceStateZero(alice.addr);
         assertEqBalanceStateZero(address(hook));
-        assertEqMorphoState(address(hook), 0, 0, amountToDeposit);
+        assertEqMorphoState(bUSDCmId, address(hook), 0, 0, amountToDeposit);
         // IALM.ALMInfo memory info = hook.getALMInfo(almId);
         // assertEq(info.fee, 1e16);
     }
@@ -45,16 +45,15 @@ contract ALMTest is ALMTestBase {
         test_deposit();
 
         deal(address(USDC), address(swapper.addr), 1 ether);
+        assertEqBalanceState(swapper.addr, 0, 1 ether);
 
         swapUSDC_WETH_Out(1 ether);
 
-        console.log("> balances after swap");
-        console.log(USDC.balanceOf(address(hook)));
-        console.log(USDC.balanceOf(address(manager)));
+        assertEqBalanceState(swapper.addr, 1 ether, 0);
+        assertEqBalanceState(address(hook), 0, 0);
 
-        // assertEqBalanceState(swapper.addr, 1 ether, 0);
-        // assertEqBalanceState(address(hook), 0, 0, 0, 16851686274526807531);
-        // assertEqMorphoState(address(hook), 0, 4513632092000000, 50 ether);
+        assertEqMorphoState(bWETHmId, address(hook), 0, 0, 1 ether);
+        assertEqMorphoState(bUSDCmId, address(hook), 0, 0, 99 ether);
     }
 
     // -- Helpers --
@@ -65,13 +64,16 @@ contract ALMTest is ALMTestBase {
         address hookAddress = address(
             uint160(
                 Hooks.BEFORE_SWAP_FLAG |
-                    Hooks.AFTER_SWAP_FLAG |
                     Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG |
                     Hooks.BEFORE_ADD_LIQUIDITY_FLAG |
                     Hooks.AFTER_INITIALIZE_FLAG
             )
         );
-        deployCodeTo("ALM.sol", abi.encode(manager, marketId), hookAddress);
+        deployCodeTo(
+            "ALM.sol",
+            abi.encode(manager, bWETHmId, bUSDCmId),
+            hookAddress
+        );
         ALM _hook = ALM(hookAddress);
 
         uint160 initialSQRTPrice = TickMath.getSqrtPriceAtTick(-192232);
@@ -87,16 +89,31 @@ contract ALMTest is ALMTestBase {
         );
 
         hook = IALM(hookAddress);
+
+        // This is needed in order to simulate proper accounting
+        deal(address(USDC), address(manager), 100000 ether);
+        deal(address(WETH), address(manager), 100 ether);
     }
 
-    function create_and_seed_morpho_market() internal {
-        create_morpho_market(
+    function create_and_seed_morpho_markets() internal {
+        bUSDCmId = create_morpho_market(
             address(USDC),
             address(WETH),
             915000000000000000,
-            4487851340816804029821232973 //4487 usdc for eth
+            0x48F7E36EB6B826B2dF4B2E630B62Cd25e89E40e2, //TODO: maybe more oracles in the future
+            1 * 1e24 //4487 usdc for eth
         );
 
-        provideLiquidityToMorpho(address(USDC), 10000 * 1e6);
+        provideLiquidityToMorpho(bUSDCmId, 1000 ether);
+
+        bWETHmId = create_morpho_market(
+            address(WETH),
+            address(USDC),
+            915000000000000000,
+            0x48F7E36EB6B826B2dF4B2E630B62Cd25e89E40e2,
+            1 * 1e24 //4487 usdc for eth
+        );
+
+        // We won't provide WETH cause we will not borrow it from HERE. This market is only for interest mining.
     }
 }

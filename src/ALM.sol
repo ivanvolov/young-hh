@@ -31,9 +31,11 @@ contract ALM is BaseStrategyHook, ERC721 {
 
     constructor(
         IPoolManager manager,
-        Id _morphoMarketId
+        Id _borrowWETHmarketId,
+        Id _borrowUSDCmarketId
     ) BaseStrategyHook(manager) ERC721("ALM", "ALM") {
-        morphoMarketId = _morphoMarketId;
+        borrowWETHmarketId = _borrowWETHmarketId;
+        borrowUSDCmarketId = _borrowUSDCmarketId;
     }
 
     function afterInitialize(
@@ -75,7 +77,10 @@ contract ALM is BaseStrategyHook, ERC721 {
         if (amount == 0) revert ZeroLiquidity();
         WETH.transferFrom(msg.sender, address(this), amount);
 
-        morphoSupplyCollateral(WETH.balanceOf(address(this)));
+        morphoSupplyCollateral(
+            borrowUSDCmarketId,
+            WETH.balanceOf(address(this))
+        );
         almId = almIdCounter;
 
         // almInfo[almId] = ALMInfo({
@@ -90,112 +95,6 @@ contract ALM is BaseStrategyHook, ERC721 {
         // _mint(to, almId);
         // almIdCounter++;
     }
-
-    // function withdraw(
-    //     PoolKey calldata key,
-    //     uint256 almId,
-    //     address to
-    // ) external override {
-    //     console.log(">> withdraw");
-    //     if (ownerOf(almId) != msg.sender) revert NotAnALMOwner();
-
-    //     //** swap all OSQTH in WSTETH
-    //     uint256 balanceOSQTH = OSQTH.balanceOf(address(this));
-    //     if (balanceOSQTH != 0) {
-    //         ALMBaseLib.swapOSQTH_WSTETH_In(uint256(int256(balanceOSQTH)));
-    //     }
-
-    //     //** close position into WSTETH & USDC
-    //     {
-    //         (
-    //             uint128 liquidity,
-    //             int24 tickLower,
-    //             int24 tickUpper
-    //         ) = getALMPosition(key, almId);
-
-    //         poolManager.unlock(
-    //             abi.encodeCall(
-    //                 this.unlockModifyPosition,
-    //                 (key, -int128(liquidity), tickLower, tickUpper)
-    //             )
-    //         );
-    //     }
-
-    //     //** if USDC is borrowed buy extra and close the position
-    //     morphoSync();
-    //     Market memory m = morpho.market(morphoMarketId);
-    //     uint256 usdcToRepay = m.totalBorrowAssets;
-    //     MorphoPosition memory p = morpho.position(
-    //         morphoMarketId,
-    //         address(this)
-    //     );
-
-    //     if (usdcToRepay != 0) {
-    //         uint256 balanceUSDC = USDC.balanceOf(address(this));
-    //         if (usdcToRepay > balanceUSDC) {
-    //             ALMBaseLib.swapExactOutput(
-    //                 address(WSTETH),
-    //                 address(USDC),
-    //                 usdcToRepay - balanceUSDC
-    //             );
-    //         } else {
-    //             ALMBaseLib.swapExactOutput(
-    //                 address(USDC),
-    //                 address(WSTETH),
-    //                 balanceUSDC
-    //             );
-    //         }
-
-    //         morphoReplay(0, p.borrowShares);
-    //     }
-
-    //     morphoWithdrawCollateral(p.collateral);
-    //     WSTETH.transfer(to, WSTETH.balanceOf(address(this)));
-
-    //     delete almInfo[almId];
-    // }
-
-    // function afterSwap(
-    //     address,
-    //     PoolKey calldata key,
-    //     IPoolManager.SwapParams calldata,
-    //     BalanceDelta deltas,
-    //     bytes calldata
-    // ) external virtual override returns (bytes4, int128) {
-    //     console.log(">> afterSwap");
-    //     if (deltas.amount0() == 0 && deltas.amount1() == 0)
-    //         revert NoSwapWillOccur();
-
-    //     int24 tick = getCurrentTick(key.toId());
-
-    //     if (tick > getTickLast(key.toId())) {
-    //         console.log("> price go up...");
-
-    //         morphoBorrow(uint256(int256(-deltas.amount1())), 0);
-    //         ALMBaseLib.swapUSDC_OSQTH_In(uint256(int256(-deltas.amount1())));
-    //     } else if (tick < getTickLast(key.toId())) {
-    //         console.log("> price go down...");
-    //         // get ETH => Morpho
-    //         // borrow USDC => user
-
-    //         MorphoPosition memory p = morpho.position(
-    //             morphoMarketId,
-    //             address(this)
-    //         );
-    //         if (p.borrowShares != 0) {
-    //             ALMBaseLib.swapOSQTH_USDC_Out(
-    //                 uint256(int256(deltas.amount1()))
-    //             );
-
-    //             morphoReplay(uint256(int256(deltas.amount1())), 0);
-    //         }
-    //     } else {
-    //         console.log("> price not changing...");
-    //     }
-
-    //     setTickLast(key.toId(), tick);
-    //     return (ALM.afterSwap.selector, 0);
-    // }
 
     function tokenURI(uint256) public pure override returns (string memory) {
         return "";
@@ -224,93 +123,52 @@ contract ALM is BaseStrategyHook, ERC721 {
             // If user is selling Token 0 and buying Token 1 (USDC => WETH)
             // TLDR: Here we got USDC and save it on balance. And just give our ETH back to USER.
 
+            // They will be sending Token 0 to the PM, creating a debit of Token 0 in the PM
+            // We will take actual ERC20 Token 0 from the PM and keep it in the hook
+            // and create an equivalent credit for that Token 0 since it is ours!
+            key.currency0.take(
+                poolManager,
+                address(this),
+                amountInOutPositive,
+                false
+            );
+            morphoSupplyCollateral(borrowWETHmarketId, amountInOutPositive);
+
             // We don't have token 1 on our account yet, so we need to withdraw WETH from the Morpho.
             // We also need to create a debit so user could take it back from the PM.
-            morphoWithdrawCollateral(amountInOutPositive);
-            console.log("> !");
-
+            morphoWithdrawCollateral(borrowUSDCmarketId, amountInOutPositive);
+            logBalances();
             key.currency1.settle(
                 poolManager,
                 address(this),
                 amountInOutPositive,
                 false
             );
-            console.log("> !");
+            console.log("!");
         } else {
+            console.log("> ETH price go down...");
             // If user is selling Token 1 and buying Token 0 (WETH => USDC)
             // TLDR: Here we borrow USDC at Morpho and give it back. And If we have USDC just also give it back before borrow.
 
-            console.log("> ETH price go down..."); // we get WETH should return USDC
-            revert("!");
-            // key.currency0.settle(
-            //     poolManager,
-            //     address(this),
-            //     amountInOutPositive,
-            //     true
-            // );
-            // key.currency1.take(
-            //     poolManager,
-            //     address(this),
-            //     amountInOutPositive,
-            //     true
-            // );
-        }
-
-        return (this.beforeSwap.selector, beforeSwapDelta, 0);
-    }
-
-    function afterSwap(
-        address,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
-        BalanceDelta,
-        bytes calldata
-    ) external override returns (bytes4, int128) {
-        uint256 amountInOutPositive = params.amountSpecified > 0
-            ? uint256(params.amountSpecified)
-            : uint256(-params.amountSpecified);
-
-        if (params.zeroForOne) {
-            console.log("> WETH price go up...");
-            // If user is selling Token 0 and buying Token 1 (USDC => WETH)
-            // TLDR: Here we got USDC and save it on balance. And just give our ETH back to USER.
-
-            // They will be sending Token 0 to the PM, creating a debit of Token 0 in the PM
-            // We will take actual ERC20 Token 0 from the PM and keep it in the hook
-            // and create an equivalent credit for that Token 0 since it is ours!
-            console.log("> !");
-            console.log(USDC.balanceOf(address(poolManager)));
-            console.log(USDC.balanceOf(address(address(this))));
-            key.currency0.take(
-                poolManager,
-                address(this),
-                amountInOutPositive,
-                true
-            );
-            key.currency0.settle(
-                poolManager,
-                address(this),
-                amountInOutPositive,
-                true
-            );
-            key.currency0.take(
-                poolManager,
-                address(this),
-                amountInOutPositive,
-                false
-            );
+            //TODO: next we will deal with this shit later. Especially this morpho bulshit calculations lag.
+            // morphoBorrow(amountInOutPositive, 0);
             // key.currency0.settle(
             //     poolManager,
             //     address(this),
             //     amountInOutPositive,
             //     false
             // );
-            //TODO: make to put USDC to morpho to earn interest rates
-            console.log("> !");
-        } else {
-            console.log("> ETH price go down...");
-            revert("!");
+
+            // // Put extra ETH to Morpho
+            // key.currency1.take(
+            //     poolManager,
+            //     address(this),
+            //     amountInOutPositive,
+            //     false
+            // );
+            // morphoSupplyCollateral(amountInOutPositive);
         }
-        return (this.afterSwap.selector, 0);
+
+        return (this.beforeSwap.selector, beforeSwapDelta, 0);
     }
 }
