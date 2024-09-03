@@ -21,6 +21,7 @@ import {BaseStrategyHook} from "@src/BaseStrategyHook.sol";
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Position as MorphoPosition, Id, Market} from "@forks/morpho/IMorpho.sol";
+import {CMathLib} from "@src/libraries/CMathLib.sol";
 
 /// @title ALM
 /// @author IVikkk
@@ -80,6 +81,8 @@ contract ALM is BaseStrategyHook, ERC721 {
         morphoSupplyCollateral(bUSDCmId, WETH.balanceOf(address(this)));
         almId = almIdCounter;
 
+        liquidity = 1518129116516325613903; //TODO: make not mock
+
         // almInfo[almId] = ALMInfo({
         //     amount: amount,
         //     tick: getCurrentTick(key.toId()),
@@ -103,33 +106,18 @@ contract ALM is BaseStrategyHook, ERC721 {
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
         bytes calldata
-    )
-        external
-        override
-        returns (bytes4, BeforeSwapDelta beforeSwapDelta, uint24)
-    {
+    ) external override returns (bytes4, BeforeSwapDelta, uint24) {
         if (params.zeroForOne) {
             console.log("> WETH price go up...");
             // If user is selling Token 0 and buying Token 1 (USDC => WETH)
             // TLDR: Here we got USDC and save it on balance. And just give our ETH back to USER.
-
-            //TODO: this is mock, do it not mock;) And this is not right, cause we have fucking specified amount In and Out
-            uint256 usdcIn = uint256(-params.amountSpecified);
-            uint256 wethOut = ((usdcIn * 1e12) / 4487);
-
-            if (params.amountSpecified > 0) {
-                console.log("> amount specified positive");
-                beforeSwapDelta = toBeforeSwapDelta(
-                    -int128(uint128(wethOut)), // specified token = token1
-                    int128(uint128(usdcIn)) // unspecified token = token0
-                );
-            } else {
-                console.log("> amount specified negative");
-                beforeSwapDelta = toBeforeSwapDelta(
-                    int128(uint128(usdcIn)), // specified token = token0
-                    -int128(uint128(wethOut)) // unspecified token = token1
-                );
-            }
+            (
+                BeforeSwapDelta beforeSwapDelta,
+                uint256 wethOut,
+                uint256 usdcIn
+            ) = getZeroForOneDeltas(params.amountSpecified);
+            console.log("> usdcIn", usdcIn);
+            console.log("> wethOut", wethOut);
 
             // They will be sending Token 0 to the PM, creating a debit of Token 0 in the PM
             // We will take actual ERC20 Token 0 from the PM and keep it in the hook and create an equivalent credit for that Token 0 since it is ours!
@@ -140,28 +128,20 @@ contract ALM is BaseStrategyHook, ERC721 {
             // We also need to create a debit so user could take it back from the PM.
             morphoWithdrawCollateral(bUSDCmId, wethOut);
             key.currency1.settle(poolManager, address(this), wethOut, false);
+
+            return (this.beforeSwap.selector, beforeSwapDelta, 0);
         } else {
-            console.log("> ETH price go down...");
+            console.log("> WETH price go down...");
             // If user is selling Token 1 and buying Token 0 (WETH => USDC)
             // TLDR: Here we borrow USDC at Morpho and give it back.
 
-            //TODO: this is mock, do it not mock;)
-            uint256 wethIn = uint256(params.amountSpecified);
-            uint256 usdcOut = ((wethIn * 4487) / 1e12);
-
-            if (params.amountSpecified > 0) {
-                console.log("> amount specified positive");
-                beforeSwapDelta = toBeforeSwapDelta(
-                    -int128(uint128(usdcOut)), // specified token = token0
-                    int128(uint128(wethIn)) // unspecified token = token1
-                );
-            } else {
-                console.log("> amount specified negative");
-                beforeSwapDelta = toBeforeSwapDelta(
-                    int128(uint128(wethIn)), // specified token = token1
-                    -int128(uint128(usdcOut)) // unspecified token = token0
-                );
-            }
+            (
+                BeforeSwapDelta beforeSwapDelta,
+                uint256 wethIn,
+                uint256 usdcOut
+            ) = getOneForZeroDeltas(params.amountSpecified);
+            console.log("> usdcOut", usdcOut);
+            console.log("> wethIn", wethIn);
 
             // Put extra ETH to Morpho
             key.currency1.take(poolManager, address(this), wethIn, false);
@@ -173,9 +153,95 @@ contract ALM is BaseStrategyHook, ERC721 {
             console.log("(4)");
             key.currency0.settle(poolManager, address(this), usdcOut, false);
             console.log("(5)");
-        }
 
-        return (this.beforeSwap.selector, beforeSwapDelta, 0);
+            return (this.beforeSwap.selector, beforeSwapDelta, 0);
+        }
+    }
+
+    //TODO: this could be wrapped into one function, but let it be explicit till the end of the development
+    function getZeroForOneDeltas(
+        int256 amountSpecified
+    )
+        internal
+        view
+        returns (
+            BeforeSwapDelta beforeSwapDelta,
+            uint256 wethOut,
+            uint256 usdcIn
+        )
+    {
+        if (amountSpecified > 0) {
+            console.log("> amount specified positive");
+            wethOut = uint256(amountSpecified);
+
+            (usdcIn, ) = CMathLib.getSwapAmountsFromAmount1(
+                sqrtPriceCurrent,
+                liquidity,
+                wethOut
+            );
+
+            beforeSwapDelta = toBeforeSwapDelta(
+                -int128(uint128(wethOut)), // specified token = token1
+                int128(uint128(usdcIn)) // unspecified token = token0
+            );
+        } else {
+            console.log("> amount specified negative");
+
+            usdcIn = uint256(-amountSpecified);
+
+            (, wethOut) = CMathLib.getSwapAmountsFromAmount0(
+                sqrtPriceCurrent,
+                liquidity,
+                usdcIn
+            );
+
+            beforeSwapDelta = toBeforeSwapDelta(
+                int128(uint128(usdcIn)), // specified token = token0
+                -int128(uint128(wethOut)) // unspecified token = token1
+            );
+        }
+    }
+
+    function getOneForZeroDeltas(
+        int256 amountSpecified
+    )
+        internal
+        view
+        returns (
+            BeforeSwapDelta beforeSwapDelta,
+            uint256 wethIn,
+            uint256 usdcOut
+        )
+    {
+        if (amountSpecified > 0) {
+            console.log("> amount specified positive");
+
+            usdcOut = uint256(amountSpecified);
+
+            (, wethIn) = CMathLib.getSwapAmountsFromAmount0(
+                sqrtPriceCurrent,
+                liquidity,
+                usdcOut
+            );
+            beforeSwapDelta = toBeforeSwapDelta(
+                -int128(uint128(usdcOut)), // specified token = token0
+                int128(uint128(wethIn)) // unspecified token = token1
+            );
+        } else {
+            console.log("> amount specified negative");
+            wethIn = uint256(-amountSpecified);
+
+            (usdcOut, ) = CMathLib.getSwapAmountsFromAmount1(
+                sqrtPriceCurrent,
+                liquidity,
+                wethIn
+            );
+
+            beforeSwapDelta = toBeforeSwapDelta(
+                int128(uint128(wethIn)), // specified token = token1
+                -int128(uint128(usdcOut)) // unspecified token = token0
+            );
+        }
     }
 
     function redeemAndBorrow(uint256 usdcOut) internal {

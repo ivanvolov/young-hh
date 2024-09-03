@@ -32,6 +32,21 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     Id public immutable bWETHmId;
     Id public immutable bUSDCmId;
 
+    uint128 public liquidity;
+    uint160 public sqrtPriceCurrent;
+    int24 public tickLower;
+    int24 public tickUpper;
+
+    function setBoundaries(
+        uint160 initialSQRTPrice,
+        int24 _tickUpper,
+        int24 _tickLower
+    ) external onlyHookDeployer {
+        tickUpper = _tickUpper;
+        tickLower = _tickLower;
+        sqrtPriceCurrent = initialSQRTPrice;
+    }
+
     IMorpho public constant morpho =
         IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
 

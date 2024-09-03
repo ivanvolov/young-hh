@@ -71,7 +71,7 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
     }
 
-    function test_swap_price_up() public {
+    function test_swap_price_up_in() public {
         uint256 usdcToSwap = 4487 * 1e6;
         test_deposit();
 
@@ -79,7 +79,7 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, 0, usdcToSwap);
 
         (, uint256 deltaWETH) = swapUSDC_WETH_In(usdcToSwap);
-        assertEq(deltaWETH, 1 ether);
+        assertApproxEqAbs(deltaWETH, 1 ether, 1e12);
 
         assertEqBalanceState(swapper.addr, deltaWETH, 0);
         assertEqBalanceState(address(hook), 0, 0);
@@ -88,15 +88,33 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep - deltaWETH);
     }
 
-    function test_swap_price_down() public {
+    function test_swap_price_up_out() public {
+        uint256 usdcToSwapQ = 4486999802; // this should be get from quoter
+        uint256 wethToGetFSwap = 1 ether;
+        test_deposit();
+
+        deal(address(USDC), address(swapper.addr), usdcToSwapQ);
+        assertEqBalanceState(swapper.addr, 0, usdcToSwapQ);
+
+        (, uint256 deltaWETH) = swapUSDC_WETH_Out(wethToGetFSwap);
+        assertApproxEqAbs(deltaWETH, 1 ether, 1e1);
+
+        assertEqBalanceState(swapper.addr, deltaWETH, 0);
+        assertEqBalanceState(address(hook), 0, 0);
+
+        assertEqMorphoA(bWETHmId, address(hook), 0, 0, usdcToSwapQ);
+        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep - deltaWETH);
+    }
+
+    function test_swap_price_down_in() public {
         uint256 wethToSwap = 1 ether;
         test_deposit();
 
         deal(address(WETH), address(swapper.addr), wethToSwap);
         assertEqBalanceState(swapper.addr, wethToSwap, 0);
 
-        (uint256 deltaUSDC, ) = swapWETH_USDC_Out(wethToSwap);
-        assertEq(deltaUSDC, 4487 * 1e6);
+        (uint256 deltaUSDC, ) = swapWETH_USDC_In(wethToSwap);
+        assertEq(deltaUSDC, 4486999802);
 
         assertEqBalanceState(swapper.addr, 0, deltaUSDC);
         assertEqBalanceState(address(hook), 0, 0);
@@ -109,6 +127,30 @@ contract ALMTest is ALMTestBase {
             deltaUSDC,
             amountToDep + wethToSwap
         );
+    }
+
+    function test_swap_price_down_out() public {
+        uint256 wethToSwapQ = 999999911749086355;
+        uint256 usdcToGetFSwap = 4486999802;
+        test_deposit();
+
+        deal(address(WETH), address(swapper.addr), wethToSwapQ);
+        assertEqBalanceState(swapper.addr, wethToSwapQ, 0);
+
+        (uint256 deltaUSDC, ) = swapWETH_USDC_Out(usdcToGetFSwap);
+        assertEq(deltaUSDC, usdcToGetFSwap);
+
+        // assertEqBalanceState(swapper.addr, 0, deltaUSDC);
+        // assertEqBalanceState(address(hook), 0, 0);
+
+        // assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
+        // assertEqMorphoA(
+        //     bUSDCmId,
+        //     address(hook),
+        //     0,
+        //     deltaUSDC,
+        //     amountToDep + wethToSwap
+        // );
     }
 
     // -- Helpers --
@@ -131,7 +173,7 @@ contract ALMTest is ALMTestBase {
         );
         ALM _hook = ALM(hookAddress);
 
-        uint160 initialSQRTPrice = TickMath.getSqrtPriceAtTick(-192232);
+        uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
 
         //TODO: remove block binding in tests, it could be not needed. But do it after oracles
         (key, ) = initPool(
@@ -144,6 +186,15 @@ contract ALMTest is ALMTestBase {
         );
 
         hook = IALM(hookAddress);
+
+        int24 deltaTick = 3000;
+        hook.setBoundaries(
+            initialSQRTPrice,
+            192228 - deltaTick,
+            192228 + deltaTick
+            // 191144, // 5000 usdc for eth
+            // 193376 // 4000 usdc for eth
+        );
 
         // This is needed in order to simulate proper accounting
         deal(address(USDC), address(manager), 1000 ether);

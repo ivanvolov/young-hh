@@ -70,39 +70,44 @@ abstract contract ALMTestBase is Test, Deployers {
     }
 
     // -- Uniswap V4 -- //
+
     function swapWETH_USDC_Out(
-        uint256 amountOut
+        uint256 amount
     ) public returns (uint256, uint256) {
-        vm.prank(swapper.addr);
-        BalanceDelta delta = swapRouter.swap(
-            key,
-            IPoolManager.SwapParams(
-                false, // WETH -> USDC
-                int256(amountOut),
-                TickMath.MAX_SQRT_PRICE - 1
-            ),
-            PoolSwapTest.TestSettings({
-                takeClaims: false,
-                settleUsingBurn: false
-            }),
-            ZERO_BYTES
-        );
-        return (
-            uint256(int256(delta.amount0())),
-            uint256(int256(delta.amount1()))
-        );
+        return swap(false, int256(amount));
+    }
+
+    function swapWETH_USDC_In(
+        uint256 amount
+    ) public returns (uint256, uint256) {
+        return swap(false, -int256(amount));
+    }
+
+    function swapUSDC_WETH_Out(
+        uint256 amount
+    ) public returns (uint256, uint256) {
+        return swap(true, int256(amount));
     }
 
     function swapUSDC_WETH_In(
-        uint256 amountOut
+        uint256 amount
     ) public returns (uint256, uint256) {
+        return swap(true, -int256(amount));
+    }
+
+    function swap(
+        bool zeroForOne,
+        int256 amount
+    ) internal returns (uint256, uint256) {
         vm.prank(swapper.addr);
         BalanceDelta delta = swapRouter.swap(
             key,
             IPoolManager.SwapParams(
-                true, // USDC -> WETH
-                -int256(amountOut),
-                TickMath.MIN_SQRT_PRICE + 1
+                zeroForOne,
+                amount,
+                zeroForOne == true
+                    ? TickMath.MIN_SQRT_PRICE + 1
+                    : TickMath.MAX_SQRT_PRICE - 1
             ),
             PoolSwapTest.TestSettings({
                 takeClaims: false,
