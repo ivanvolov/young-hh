@@ -107,6 +107,9 @@ contract ALM is BaseStrategyHook, ERC721 {
         IPoolManager.SwapParams calldata params,
         bytes calldata
     ) external override returns (bytes4, BeforeSwapDelta, uint24) {
+        morphoSync(bWETHmId);
+        morphoSync(bUSDCmId);
+
         if (params.zeroForOne) {
             console.log("> WETH price go up...");
             // If user is selling Token 0 and buying Token 1 (USDC => WETH)
@@ -114,7 +117,8 @@ contract ALM is BaseStrategyHook, ERC721 {
             (
                 BeforeSwapDelta beforeSwapDelta,
                 uint256 wethOut,
-                uint256 usdcIn
+                uint256 usdcIn,
+                uint160 sqrtPriceNext
             ) = getZeroForOneDeltas(params.amountSpecified);
             console.log("> usdcIn", usdcIn);
             console.log("> wethOut", wethOut);
@@ -129,6 +133,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             morphoWithdrawCollateral(bUSDCmId, wethOut);
             key.currency1.settle(poolManager, address(this), wethOut, false);
 
+            sqrtPriceCurrent = sqrtPriceNext;
             return (this.beforeSwap.selector, beforeSwapDelta, 0);
         } else {
             console.log("> WETH price go down...");
@@ -138,7 +143,8 @@ contract ALM is BaseStrategyHook, ERC721 {
             (
                 BeforeSwapDelta beforeSwapDelta,
                 uint256 wethIn,
-                uint256 usdcOut
+                uint256 usdcOut,
+                uint160 sqrtPriceNext
             ) = getOneForZeroDeltas(params.amountSpecified);
             console.log("> usdcOut", usdcOut);
             console.log("> wethIn", wethIn);
@@ -154,6 +160,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             key.currency0.settle(poolManager, address(this), usdcOut, false);
             console.log("(5)");
 
+            sqrtPriceCurrent = sqrtPriceNext;
             return (this.beforeSwap.selector, beforeSwapDelta, 0);
         }
     }
@@ -167,14 +174,16 @@ contract ALM is BaseStrategyHook, ERC721 {
         returns (
             BeforeSwapDelta beforeSwapDelta,
             uint256 wethOut,
-            uint256 usdcIn
+            uint256 usdcIn,
+            uint160 sqrtPriceNext
         )
     {
         if (amountSpecified > 0) {
             console.log("> amount specified positive");
             wethOut = uint256(amountSpecified);
 
-            (usdcIn, ) = CMathLib.getSwapAmountsFromAmount1(
+            //TODO: this sqrtPriceNext is not always correct, especially when we are doing reverse swaps. Use another method to calculate it
+            (usdcIn, , sqrtPriceNext) = CMathLib.getSwapAmountsFromAmount1(
                 sqrtPriceCurrent,
                 liquidity,
                 wethOut
@@ -189,7 +198,7 @@ contract ALM is BaseStrategyHook, ERC721 {
 
             usdcIn = uint256(-amountSpecified);
 
-            (, wethOut) = CMathLib.getSwapAmountsFromAmount0(
+            (, wethOut, sqrtPriceNext) = CMathLib.getSwapAmountsFromAmount0(
                 sqrtPriceCurrent,
                 liquidity,
                 usdcIn
@@ -210,7 +219,8 @@ contract ALM is BaseStrategyHook, ERC721 {
         returns (
             BeforeSwapDelta beforeSwapDelta,
             uint256 wethIn,
-            uint256 usdcOut
+            uint256 usdcOut,
+            uint160 sqrtPriceNext
         )
     {
         if (amountSpecified > 0) {
@@ -218,7 +228,7 @@ contract ALM is BaseStrategyHook, ERC721 {
 
             usdcOut = uint256(amountSpecified);
 
-            (, wethIn) = CMathLib.getSwapAmountsFromAmount0(
+            (, wethIn, sqrtPriceNext) = CMathLib.getSwapAmountsFromAmount0(
                 sqrtPriceCurrent,
                 liquidity,
                 usdcOut
@@ -231,7 +241,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             console.log("> amount specified negative");
             wethIn = uint256(-amountSpecified);
 
-            (usdcOut, ) = CMathLib.getSwapAmountsFromAmount1(
+            (usdcOut, , sqrtPriceNext) = CMathLib.getSwapAmountsFromAmount1(
                 sqrtPriceCurrent,
                 liquidity,
                 wethIn

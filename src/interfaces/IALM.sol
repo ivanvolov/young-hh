@@ -24,6 +24,8 @@ interface IALM {
         uint256 fee;
     }
 
+    function sqrtPriceCurrent() external view returns (uint160);
+
     function getALMInfo(uint256 almId) external view returns (ALMInfo memory);
 
     function priceScalingFactor() external view returns (uint256);
@@ -39,15 +41,6 @@ interface IALM {
         uint256 amount,
         address to
     ) external returns (uint256 almId);
-
-    // function withdraw(PoolKey calldata key, uint256 almId, address to) external;
-
-    function getCurrentTick(PoolId poolId) external view returns (int24);
-
-    function getALMPosition(
-        PoolKey memory key,
-        uint256 almId
-    ) external view returns (uint128, int24, int24);
 
     function setBoundaries(
         uint160 initialSQRTPrice,

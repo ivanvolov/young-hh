@@ -19,7 +19,13 @@ contract ALMTest is ALMTestBase {
     using PoolIdLibrary for PoolId;
     using CurrencyLibrary for Currency;
 
+    string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
+
     function setUp() public {
+        uint256 mainnetFork = vm.createFork(MAINNET_RPC_URL);
+        vm.selectFork(mainnetFork);
+        vm.rollFork(19_955_703);
+
         deployFreshManagerAndRouters();
 
         labelTokens();
@@ -69,6 +75,8 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceStateZero(address(hook));
         assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep);
         assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
+
+        assertEq(hook.sqrtPriceCurrent(), 1182773400228691521900860642689024);
     }
 
     function test_swap_price_up_in() public {
@@ -86,6 +94,8 @@ contract ALMTest is ALMTestBase {
 
         assertEqMorphoA(bWETHmId, address(hook), 0, 0, usdcToSwap);
         assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep - deltaWETH);
+
+        assertEq(hook.sqrtPriceCurrent(), 1182773348040667356834461225258195);
     }
 
     function test_swap_price_up_out() public {
@@ -104,6 +114,8 @@ contract ALMTest is ALMTestBase {
 
         assertEqMorphoA(bWETHmId, address(hook), 0, 0, usdcToSwapQ);
         assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep - deltaWETH);
+
+        assertEq(hook.sqrtPriceCurrent(), 1182773452416717989682750407314586);
     }
 
     function test_swap_price_down_in() public {
@@ -127,6 +139,8 @@ contract ALMTest is ALMTestBase {
             deltaUSDC,
             amountToDep + wethToSwap
         );
+
+        assertEq(hook.sqrtPriceCurrent(), 1182773452416717989682750407314586);
     }
 
     function test_swap_price_down_out() public {
@@ -140,17 +154,19 @@ contract ALMTest is ALMTestBase {
         (uint256 deltaUSDC, ) = swapWETH_USDC_Out(usdcToGetFSwap);
         assertEq(deltaUSDC, usdcToGetFSwap);
 
-        // assertEqBalanceState(swapper.addr, 0, deltaUSDC);
-        // assertEqBalanceState(address(hook), 0, 0);
+        assertEqBalanceState(swapper.addr, 0, deltaUSDC);
+        assertEqBalanceState(address(hook), 0, 0);
 
-        // assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
-        // assertEqMorphoA(
-        //     bUSDCmId,
-        //     address(hook),
-        //     0,
-        //     deltaUSDC,
-        //     amountToDep + wethToSwap
-        // );
+        assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
+        assertEqMorphoA(
+            bUSDCmId,
+            address(hook),
+            0,
+            deltaUSDC,
+            amountToDep + wethToSwapQ
+        );
+
+        assertEq(hook.sqrtPriceCurrent(), 1182773348040669659759987951310948);
     }
 
     // -- Helpers --
@@ -177,7 +193,7 @@ contract ALMTest is ALMTestBase {
 
         //TODO: remove block binding in tests, it could be not needed. But do it after oracles
         (key, ) = initPool(
-            Currency.wrap(address(USDC)), //TODO: this sqrt price could be fck, recalculate it
+            Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),
             _hook,
             200,
