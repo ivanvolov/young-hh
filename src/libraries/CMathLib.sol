@@ -78,37 +78,66 @@ library CMathLib {
     //     return uint128(liquidity);
     // }
 
-    // function getLiquidityFromAmountsSqrtPriceX96(
-    //     uint160 sqrtPriceCurrentX96,
-    //     uint160 sqrtPriceUpperX96,
-    //     uint160 sqrtPriceLowerX96,
-    //     uint256 amount0,
-    //     uint256 amount1
-    // ) internal pure returns (uint128) {
-    //     uint256 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-    //         sqrtPriceCurrentX96,
-    //         sqrtPriceUpperX96,
-    //         sqrtPriceLowerX96,
-    //         amount0,
-    //         amount1
-    //     );
-    //     return uint128(liquidity);
-    // }
+    function getLiquidityFromAmountsSqrtPriceX96(
+        uint160 sqrtPriceCurrentX96,
+        uint160 sqrtPriceUpperX96,
+        uint160 sqrtPriceLowerX96,
+        uint256 amount0,
+        uint256 amount1
+    ) internal pure returns (uint128) {
+        uint256 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceCurrentX96,
+            sqrtPriceUpperX96,
+            sqrtPriceLowerX96,
+            amount0,
+            amount1
+        );
+        return uint128(liquidity);
+    }
 
-    // function getAmountsFromLiquiditySqrtPriceX96(
-    //     uint160 sqrtPriceNextX96,
-    //     uint160 sqrtPriceUpperX96,
-    //     uint160 sqrtPriceLowerX96,
-    //     uint128 liquidity
-    // ) internal pure returns (uint256, uint256) {
-    //     return
-    //         LiquidityAmounts.getAmountsForLiquidity(
-    //             sqrtPriceNextX96,
-    //             sqrtPriceUpperX96,
-    //             sqrtPriceLowerX96,
-    //             liquidity
-    //         );
-    // }
+    function getLiquidityFromAmount1SqrtPriceX96(
+        uint160 sqrtPriceUpperX96,
+        uint160 sqrtPriceLowerX96,
+        uint256 amount1
+    ) internal pure returns (uint128) {
+        return
+            LiquidityAmounts.getLiquidityForAmount0(
+                sqrtPriceUpperX96,
+                sqrtPriceLowerX96,
+                amount1
+            );
+    }
+
+    //TODO: Not the right lib
+    function getLiquidityForValue(
+        uint256 v,
+        uint256 p,
+        uint256 pH,
+        uint256 pL,
+        uint256 digits
+    ) external pure returns (uint128) {
+        return
+            toUint128(
+                v.div((p.sqrt()).mul(2e18) - pL.sqrt() - p.div(pH.sqrt())).mul(
+                    digits
+                )
+            );
+    }
+
+    function getAmountsFromLiquiditySqrtPriceX96(
+        uint160 sqrtPriceCurrentX96,
+        uint160 sqrtPriceUpperX96,
+        uint160 sqrtPriceLowerX96,
+        uint128 liquidity
+    ) internal pure returns (uint256, uint256) {
+        return
+            LiquidityAmounts.getAmountsForLiquidity(
+                sqrtPriceCurrentX96,
+                sqrtPriceUpperX96,
+                sqrtPriceLowerX96,
+                liquidity
+            );
+    }
 
     // --- Helpers ---
 
@@ -140,5 +169,11 @@ library CMathLib {
     function toUint160(uint256 value) internal pure returns (uint160) {
         require(value <= type(uint160).max, "MH2");
         return uint160(value);
+    }
+
+    /// @dev Casts uint256 to uint128 with overflow check.
+    function toUint128(uint256 x) internal pure returns (uint128) {
+        assert(x <= type(uint128).max);
+        return uint128(x);
     }
 }

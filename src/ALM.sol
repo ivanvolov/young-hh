@@ -83,6 +83,22 @@ contract ALM is BaseStrategyHook, ERC721 {
 
         liquidity = 1518129116516325613903; //TODO: make not mock
 
+        uint128 _liquidity = CMathLib.getLiquidityFromAmount1SqrtPriceX96(
+            CMathLib.getSqrtPriceAtTick(tickUpper),
+            CMathLib.getSqrtPriceAtTick(tickLower),
+            4487 * 1e6
+        );
+        console.log(">> liquidity", _liquidity);
+        (uint256 _amount0, uint256 _amount1) = CMathLib
+            .getAmountsFromLiquiditySqrtPriceX96(
+                sqrtPriceCurrent, //TODO: change current price to tick maybe letter
+                CMathLib.getSqrtPriceAtTick(tickUpper),
+                CMathLib.getSqrtPriceAtTick(tickLower),
+                _liquidity
+            );
+        console.log(">> _amount0", _amount0);
+        console.log(">> _amount1", _amount1);
+
         // almInfo[almId] = ALMInfo({
         //     amount: amount,
         //     tick: getCurrentTick(key.toId()),
