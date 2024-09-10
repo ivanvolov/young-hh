@@ -84,10 +84,23 @@ library CMathLib {
         uint256 amount1
     ) internal pure returns (uint128) {
         return
-            LiquidityAmounts.getLiquidityForAmount0(
+            LiquidityAmounts.getLiquidityForAmount1(
                 sqrtPriceUpperX96,
                 sqrtPriceLowerX96,
                 amount1
+            );
+    }
+
+    function getLiquidityFromAmount0SqrtPriceX96(
+        uint160 sqrtPriceUpperX96,
+        uint160 sqrtPriceLowerX96,
+        uint256 amount0
+    ) internal pure returns (uint128) {
+        return
+            LiquidityAmounts.getLiquidityForAmount0(
+                sqrtPriceUpperX96,
+                sqrtPriceLowerX96,
+                amount0
             );
     }
 
