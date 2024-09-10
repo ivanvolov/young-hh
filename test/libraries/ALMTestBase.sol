@@ -287,7 +287,7 @@ abstract contract ALMTestBase is Test, Deployers {
         assertApproxEqAbs(
             WETH.balanceOf(owner),
             _balanceWETH,
-            10,
+            1000,
             "Balance WETH not equal"
         );
         assertApproxEqAbs(

@@ -76,30 +76,23 @@ contract ALM is BaseStrategyHook, ERC721 {
     ) external override returns (uint256 almId) {
         console.log(">> deposit");
         if (amount == 0) revert ZeroLiquidity();
-        WETH.transferFrom(msg.sender, address(this), amount);
 
-        morphoSupplyCollateral(bUSDCmId, WETH.balanceOf(address(this)));
-        almId = almIdCounter;
-
-        liquidity = 1518129116516325613903; //TODO: make not mock
-                    480558804376977
-
-        uint128 _liquidity = CMathLib.getLiquidityFromAmount1SqrtPriceX96(
+        liquidity = CMathLib.getLiquidityFromAmount1SqrtPriceX96(
             CMathLib.getSqrtPriceAtTick(tickUpper),
             sqrtPriceCurrent,
             amount
         );
-        console.log(">> liquidity", _liquidity);
-        (uint256 _amount0, uint256 _amount1) = CMathLib
-            .getAmountsFromLiquiditySqrtPriceX96(
-                sqrtPriceCurrent,
-                CMathLib.getSqrtPriceAtTick(tickUpper),
-                CMathLib.getSqrtPriceAtTick(tickLower),
-                _liquidity
-            );
-        console.log(">> _amount0", _amount0);
-        console.log(">> _amount1", _amount1);
+        (, uint256 amount1) = CMathLib.getAmountsFromLiquiditySqrtPriceX96(
+            sqrtPriceCurrent,
+            CMathLib.getSqrtPriceAtTick(tickUpper),
+            CMathLib.getSqrtPriceAtTick(tickLower),
+            liquidity
+        );
 
+        WETH.transferFrom(msg.sender, address(this), amount1);
+        morphoSupplyCollateral(bUSDCmId, WETH.balanceOf(address(this)));
+
+        almId = almIdCounter;
         // almInfo[almId] = ALMInfo({
         //     amount: amount,
         //     tick: getCurrentTick(key.toId()),
