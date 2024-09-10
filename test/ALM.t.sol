@@ -6,7 +6,6 @@ import "forge-std/console.sol";
 
 import {Hooks} from "v4-core/libraries/Hooks.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
-import {HookEnabledSwapRouter} from "@test/libraries/HookEnabledSwapRouter.sol";
 import {ALMTestBase} from "@test/libraries/ALMTestBase.sol";
 import {ErrorsLib} from "@forks/morpho/libraries/ErrorsLib.sol";
 
@@ -46,7 +45,7 @@ contract ALMTest is ALMTestBase {
             ""
         );
 
-        assertEqMorphoState(bUSDCmId, alice.addr, 0, 0, 1 ether);
+        assertEqMorphoS(bUSDCmId, alice.addr, 0, 0, 1 ether);
         assertEqBalanceStateZero(alice.addr);
 
         // ** Borrow
@@ -59,7 +58,7 @@ contract ALMTest is ALMTestBase {
             alice.addr
         );
 
-        assertEqMorphoState(bUSDCmId, alice.addr, 0, shares, 1 ether);
+        assertEqMorphoS(bUSDCmId, alice.addr, 0, shares, 1 ether);
         assertEqBalanceState(alice.addr, 0, borrowUSDC);
         vm.stopPrank();
     }
@@ -172,8 +171,6 @@ contract ALMTest is ALMTestBase {
     // -- Helpers --
 
     function init_hook() internal {
-        router = new HookEnabledSwapRouter(manager);
-
         address hookAddress = address(
             uint160(
                 Hooks.BEFORE_SWAP_FLAG |

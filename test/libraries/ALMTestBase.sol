@@ -17,7 +17,6 @@ import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
 
 import {TestERC20} from "v4-core/test/TestERC20.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
-import {HookEnabledSwapRouter} from "@test/libraries/HookEnabledSwapRouter.sol";
 import {TestAccount, TestAccountLib} from "@test/libraries/TestAccountLib.t.sol";
 import {MorphoBalancesLib} from "@forks/morpho/libraries/MorphoBalancesLib.sol";
 
@@ -34,7 +33,6 @@ abstract contract ALMTestBase is Test, Deployers {
     TestAccount alice;
     TestAccount swapper;
 
-    HookEnabledSwapRouter router;
     Id bWETHmId;
     Id bUSDCmId;
     IMorpho morpho = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
@@ -62,8 +60,6 @@ abstract contract ALMTestBase is Test, Deployers {
         vm.stopPrank();
 
         vm.startPrank(swapper.addr);
-        USDC.approve(address(router), type(uint256).max);
-        WETH.approve(address(router), type(uint256).max);
         USDC.approve(address(swapRouter), type(uint256).max);
         WETH.approve(address(swapRouter), type(uint256).max);
         vm.stopPrank();
@@ -119,15 +115,6 @@ abstract contract ALMTestBase is Test, Deployers {
             uint256(int256(delta.amount0())),
             uint256(int256(delta.amount1()))
         );
-    }
-
-    // -- Uniswap V3 -- //
-
-    function getETH_USDCPriceV3() public view returns (uint256) {
-        return
-            ALMBaseLib.getV3PoolPrice(
-                0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640
-            );
     }
 
     // -- Morpho -- //
@@ -193,13 +180,13 @@ abstract contract ALMTestBase is Test, Deployers {
             ""
         );
 
-        assertEqMorphoState(marketId, morphoLpProvider.addr, shares, 0, 0);
+        assertEqMorphoS(marketId, morphoLpProvider.addr, shares, 0, 0);
         assertEqBalanceStateZero(morphoLpProvider.addr);
         vm.stopPrank();
     }
 
     // -- Custom assertions -- //
-    function assertEqMorphoState(
+    function assertEqMorphoS(
         Id marketId,
         address owner,
         uint256 _supplyShares,

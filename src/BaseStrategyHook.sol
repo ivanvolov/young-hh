@@ -53,36 +53,6 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     bytes internal constant ZERO_BYTES = bytes("");
     address public immutable hookDeployer;
 
-    uint256 public priceScalingFactor = 2;
-    uint256 public cRatio = 2;
-    uint256 public weight = 2;
-    uint256 public performanceFee = 1e16;
-
-    function setPriceScalingFactor(
-        uint256 _priceScalingFactor
-    ) external onlyHookDeployer {
-        priceScalingFactor = _priceScalingFactor;
-    }
-
-    function setCRatio(uint256 _cRatio) external onlyHookDeployer {
-        cRatio = _cRatio;
-    }
-
-    function setWeight(uint256 _weight) external onlyHookDeployer {
-        weight = _weight;
-    }
-
-    function setPerformanceFee(
-        uint256 _performanceFee
-    ) external onlyHookDeployer {
-        performanceFee = _performanceFee;
-    }
-
-    function getUserFee() public view returns (uint256) {
-        return performanceFee;
-    }
-
-    mapping(PoolId => int24) lastTick;
     uint256 public almIdCounter = 0;
     mapping(uint256 => ALMInfo) almInfo;
 
@@ -90,14 +60,6 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         uint256 almId
     ) external view override returns (ALMInfo memory) {
         return almInfo[almId];
-    }
-
-    function getTickLast(PoolId poolId) public view override returns (int24) {
-        return lastTick[poolId];
-    }
-
-    function setTickLast(PoolId poolId, int24 _tick) internal {
-        lastTick[poolId] = _tick;
     }
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {

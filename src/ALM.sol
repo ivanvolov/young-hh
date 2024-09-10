@@ -46,15 +46,8 @@ contract ALM is BaseStrategyHook, ERC721 {
         int24 tick,
         bytes calldata
     ) external override returns (bytes4) {
-        console.log(">> afterInitialize");
-
-        WETH.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
-        USDC.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
-
         WETH.approve(address(morpho), type(uint256).max);
         USDC.approve(address(morpho), type(uint256).max);
-
-        setTickLast(key.toId(), tick);
 
         return ALM.afterInitialize.selector;
     }
@@ -93,17 +86,16 @@ contract ALM is BaseStrategyHook, ERC721 {
         morphoSupplyCollateral(bUSDCmId, WETH.balanceOf(address(this)));
 
         almId = almIdCounter;
-        // almInfo[almId] = ALMInfo({
-        //     amount: amount,
-        //     tick: getCurrentTick(key.toId()),
-        //     tickLower: tickLower,
-        //     tickUpper: tickUpper,
-        //     created: block.timestamp,
-        //     fee: getUserFee()
-        // });
+        almInfo[almId] = ALMInfo({
+            amount: amount,
+            sqrtPrice: sqrtPriceCurrent,
+            tickLower: tickLower,
+            tickUpper: tickUpper,
+            created: block.timestamp
+        });
 
-        // _mint(to, almId);
-        // almIdCounter++;
+        _mint(to, almId);
+        almIdCounter++;
     }
 
     function tokenURI(uint256) public pure override returns (string memory) {
@@ -130,8 +122,6 @@ contract ALM is BaseStrategyHook, ERC721 {
                 uint256 usdcIn,
                 uint160 sqrtPriceNext
             ) = getZeroForOneDeltas(params.amountSpecified);
-            console.log("> usdcIn", usdcIn);
-            console.log("> wethOut", wethOut);
 
             // They will be sending Token 0 to the PM, creating a debit of Token 0 in the PM
             // We will take actual ERC20 Token 0 from the PM and keep it in the hook and create an equivalent credit for that Token 0 since it is ours!
@@ -146,7 +136,6 @@ contract ALM is BaseStrategyHook, ERC721 {
             sqrtPriceCurrent = sqrtPriceNext;
             return (this.beforeSwap.selector, beforeSwapDelta, 0);
         } else {
-            console.log("> WETH price go down...");
             // If user is selling Token 1 and buying Token 0 (WETH => USDC)
             // TLDR: Here we borrow USDC at Morpho and give it back.
 
@@ -156,8 +145,6 @@ contract ALM is BaseStrategyHook, ERC721 {
                 uint256 usdcOut,
                 uint160 sqrtPriceNext
             ) = getOneForZeroDeltas(params.amountSpecified);
-            console.log("> usdcOut", usdcOut);
-            console.log("> wethIn", wethIn);
 
             // Put extra ETH to Morpho
             key.currency1.take(poolManager, address(this), wethIn, false);
@@ -165,10 +152,7 @@ contract ALM is BaseStrategyHook, ERC721 {
 
             // Ensure we have enough USDC. Redeem from reserves and borrow if needed.
             redeemAndBorrow(usdcOut);
-            logBalances();
-            console.log("(4)");
             key.currency0.settle(poolManager, address(this), usdcOut, false);
-            console.log("(5)");
 
             sqrtPriceCurrent = sqrtPriceNext;
             return (this.beforeSwap.selector, beforeSwapDelta, 0);
