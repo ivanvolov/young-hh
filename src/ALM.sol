@@ -21,7 +21,6 @@ import {BaseStrategyHook} from "@src/BaseStrategyHook.sol";
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Position as MorphoPosition, Id, Market} from "@forks/morpho/IMorpho.sol";
-import {CMathLib} from "@src/libraries/CMathLib.sol";
 
 /// @title ALM
 /// @author IVikkk
@@ -70,15 +69,15 @@ contract ALM is BaseStrategyHook, ERC721 {
         console.log(">> deposit");
         if (amount == 0) revert ZeroLiquidity();
 
-        liquidity = CMathLib.getLiquidityFromAmount1SqrtPriceX96(
-            CMathLib.getSqrtPriceAtTick(tickUpper),
+        liquidity = ALMMathLib.getLiquidityFromAmount1SqrtPriceX96(
+            ALMMathLib.getSqrtPriceAtTick(tickUpper),
             sqrtPriceCurrent,
             amount
         );
-        (, uint256 amount1) = CMathLib.getAmountsFromLiquiditySqrtPriceX96(
+        (, uint256 amount1) = ALMMathLib.getAmountsFromLiquiditySqrtPriceX96(
             sqrtPriceCurrent,
-            CMathLib.getSqrtPriceAtTick(tickUpper),
-            CMathLib.getSqrtPriceAtTick(tickLower),
+            ALMMathLib.getSqrtPriceAtTick(tickUpper),
+            ALMMathLib.getSqrtPriceAtTick(tickLower),
             liquidity
         );
 
@@ -177,7 +176,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             wethOut = uint256(amountSpecified);
 
             //TODO: this sqrtPriceNext is not always correct, especially when we are doing reverse swaps. Use another method to calculate it
-            (usdcIn, , sqrtPriceNext) = CMathLib.getSwapAmountsFromAmount1(
+            (usdcIn, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
                 sqrtPriceCurrent,
                 liquidity,
                 wethOut
@@ -192,7 +191,7 @@ contract ALM is BaseStrategyHook, ERC721 {
 
             usdcIn = uint256(-amountSpecified);
 
-            (, wethOut, sqrtPriceNext) = CMathLib.getSwapAmountsFromAmount0(
+            (, wethOut, sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount0(
                 sqrtPriceCurrent,
                 liquidity,
                 usdcIn
@@ -222,7 +221,7 @@ contract ALM is BaseStrategyHook, ERC721 {
 
             usdcOut = uint256(amountSpecified);
 
-            (, wethIn, sqrtPriceNext) = CMathLib.getSwapAmountsFromAmount0(
+            (, wethIn, sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount0(
                 sqrtPriceCurrent,
                 liquidity,
                 usdcOut
@@ -235,7 +234,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             console.log("> amount specified negative");
             wethIn = uint256(-amountSpecified);
 
-            (usdcOut, , sqrtPriceNext) = CMathLib.getSwapAmountsFromAmount1(
+            (usdcOut, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
                 sqrtPriceCurrent,
                 liquidity,
                 wethIn

@@ -6,13 +6,8 @@ import {PoolId} from "v4-core/types/PoolId.sol";
 
 interface IALM {
     error ZeroLiquidity();
-
     error AddLiquidityThroughHook();
-
-    error InRange();
-
     error NotAnALMOwner();
-
     error NoSwapWillOccur();
 
     struct ALMInfo {
