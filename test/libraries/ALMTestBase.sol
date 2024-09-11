@@ -151,19 +151,18 @@ abstract contract ALMTestBase is Test, Deployers {
             abi.encode(newPrice)
         );
 
-        console.log("> vault", address(iface.VAULT()));
-        console.log("> conversionSample", iface.VAULT_CONVERSION_SAMPLE());
-        console.log("> baseFeed1", address(iface.BASE_FEED_1()));
-        console.log("> baseFeed2", address(iface.BASE_FEED_2()));
-        console.log("> quoteFeed1", address(iface.QUOTE_FEED_1()));
-        console.log("> quoteFeed2", address(iface.QUOTE_FEED_2()));
-        console.log("> scaleFactor", iface.SCALE_FACTOR());
+        // console.log("> vault", address(iface.VAULT()));
+        // console.log("> conversionSample", iface.VAULT_CONVERSION_SAMPLE());
+        // console.log("> baseFeed1", address(iface.BASE_FEED_1()));
+        // console.log("> baseFeed2", address(iface.BASE_FEED_2()));
+        // console.log("> quoteFeed1", address(iface.QUOTE_FEED_1()));
+        // console.log("> quoteFeed2", address(iface.QUOTE_FEED_2()));
+        // console.log("> scaleFactor", iface.SCALE_FACTOR());
         return iface;
     }
 
     function provideLiquidityToMorpho(Id marketId, uint256 amount) internal {
         MarketParams memory marketParams = morpho.idToMarketParams(marketId);
-        console.log(">>", marketParams.loanToken);
 
         vm.startPrank(morphoLpProvider.addr);
         deal(marketParams.loanToken, morphoLpProvider.addr, amount);

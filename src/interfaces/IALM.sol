@@ -33,4 +33,6 @@ interface IALM {
         int24 _tickUpper,
         int24 _tickLower
     ) external;
+
+    function getSwapFees() external returns (uint256);
 }

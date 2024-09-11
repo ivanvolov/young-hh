@@ -11,8 +11,10 @@ import {ErrorsLib} from "@forks/morpho/libraries/ErrorsLib.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "v4-core/types/Currency.sol";
+import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface.sol";
 import {ALM} from "@src/ALM.sol";
 import {IALM} from "@src/interfaces/IALM.sol";
+import {ALMBaseLib} from "@src/libraries/ALMBaseLib.sol";
 
 contract ALMTest is ALMTestBase {
     using PoolIdLibrary for PoolId;
@@ -31,6 +33,8 @@ contract ALMTest is ALMTestBase {
         create_and_seed_morpho_markets();
         init_hook();
         create_and_approve_accounts();
+
+        presetChainlinkOracles();
     }
 
     function test_morpho_blue_markets() public {
@@ -63,6 +67,10 @@ contract ALMTest is ALMTestBase {
         vm.stopPrank();
     }
 
+    function test_volatility_fees() public {
+        assertEq(hook.getSwapFees(), 1149360638297872);
+    }
+
     uint256 amountToDep = 100 ether;
 
     function test_deposit() public {
@@ -86,7 +94,7 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, 0, usdcToSwap);
 
         (, uint256 deltaWETH) = swapUSDC_WETH_In(usdcToSwap);
-        assertApproxEqAbs(deltaWETH, 998608040642348771, 1e1);
+        assertApproxEqAbs(deltaWETH, 997461875710891611, 1e1);
 
         assertEqBalanceState(swapper.addr, deltaWETH, 0);
         assertEqBalanceState(address(hook), 0, 0);
@@ -94,11 +102,11 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(bWETHmId, address(hook), 0, 0, usdcToSwap);
         assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep - deltaWETH);
 
-        assertEq(hook.sqrtPriceCurrent(), 1181127027726274553222778527813428);
+        assertEq(hook.sqrtPriceCurrent(), 1181128917371009610520611806230478);
     }
 
     function test_swap_price_up_out() public {
-        uint256 usdcToSwapQ = 4480754278; // this should be get from quoter
+        uint256 usdcToSwapQ = 4480755527; // this should be get from quoter
         uint256 wethToGetFSwap = 1 ether;
         test_deposit();
 
@@ -114,7 +122,7 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(bWETHmId, address(hook), 0, 0, usdcToSwapQ);
         assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep - deltaWETH);
 
-        assertEq(hook.sqrtPriceCurrent(), 1184422067609096299346214804420294);
+        assertEq(hook.sqrtPriceCurrent(), 1184420172695703616430662028218963);
     }
 
     function test_swap_price_down_in() public {
@@ -125,7 +133,7 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, wethToSwap, 0);
 
         (uint256 deltaUSDC, ) = swapWETH_USDC_In(wethToSwap);
-        assertEq(deltaUSDC, 4480754278);
+        assertEq(deltaUSDC, 4475611436);
 
         assertEqBalanceState(swapper.addr, 0, deltaUSDC);
         assertEqBalanceState(address(hook), 0, 0);
@@ -139,11 +147,11 @@ contract ALMTest is ALMTestBase {
             amountToDep + wethToSwap
         );
 
-        assertEq(hook.sqrtPriceCurrent(), 1184422067609096299346214804420294);
+        assertEq(hook.sqrtPriceCurrent(), 1184420172695703616430662028218963);
     }
 
     function test_swap_price_down_out() public {
-        uint256 wethToSwapQ = 998607996637637547;
+        uint256 wethToSwapQ = 999755757362062341;
         uint256 usdcToGetFSwap = 4486999802;
         test_deposit();
 
@@ -237,5 +245,35 @@ contract ALMTest is ALMTestBase {
         );
 
         // We won't provide WETH cause we will not borrow it from HERE. This market is only for interest mining.
+    }
+
+    function presetChainlinkOracles() internal {
+        vm.mockCall(
+            address(ALMBaseLib.CHAINLINK_7_DAYS_VOL),
+            abi.encodeWithSelector(
+                AggregatorV3Interface.latestRoundData.selector
+            ),
+            abi.encode(
+                18446744073709563265,
+                60444,
+                1725059436,
+                1725059436,
+                18446744073709563265
+            )
+        );
+
+        vm.mockCall(
+            address(ALMBaseLib.CHAINLINK_30_DAYS_VOL),
+            abi.encodeWithSelector(
+                AggregatorV3Interface.latestRoundData.selector
+            ),
+            abi.encode(
+                18446744073709563266,
+                86480,
+                1725059412,
+                1725059412,
+                18446744073709563266
+            )
+        );
     }
 }

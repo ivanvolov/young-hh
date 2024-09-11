@@ -18,6 +18,7 @@ import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 import {ERC721} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
 import {IERC20} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {BaseStrategyHook} from "@src/BaseStrategyHook.sol";
+import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface.sol";
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Position as MorphoPosition, Id, Market} from "@forks/morpho/IMorpho.sol";
@@ -135,6 +136,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             sqrtPriceCurrent = sqrtPriceNext;
             return (this.beforeSwap.selector, beforeSwapDelta, 0);
         } else {
+            console.log("> WETH price go down...");
             // If user is selling Token 1 and buying Token 0 (WETH => USDC)
             // TLDR: Here we borrow USDC at Morpho and give it back.
 
@@ -179,8 +181,9 @@ contract ALM is BaseStrategyHook, ERC721 {
             (usdcIn, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
                 sqrtPriceCurrent,
                 liquidity,
-                wethOut
+                adjustForFeesDown(wethOut)
             );
+            usdcIn = adjustForFeesUp(usdcIn);
 
             beforeSwapDelta = toBeforeSwapDelta(
                 -int128(uint128(wethOut)), // specified token = token1
@@ -194,7 +197,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             (, wethOut, sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount0(
                 sqrtPriceCurrent,
                 liquidity,
-                usdcIn
+                adjustForFeesDown(usdcIn)
             );
 
             beforeSwapDelta = toBeforeSwapDelta(
@@ -226,6 +229,7 @@ contract ALM is BaseStrategyHook, ERC721 {
                 liquidity,
                 usdcOut
             );
+            wethIn = adjustForFeesUp(wethIn);
             beforeSwapDelta = toBeforeSwapDelta(
                 -int128(uint128(usdcOut)), // specified token = token0
                 int128(uint128(wethIn)) // unspecified token = token1
@@ -237,7 +241,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             (usdcOut, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
                 sqrtPriceCurrent,
                 liquidity,
-                wethIn
+                adjustForFeesDown(wethIn)
             );
 
             beforeSwapDelta = toBeforeSwapDelta(
@@ -249,19 +253,41 @@ contract ALM is BaseStrategyHook, ERC721 {
 
     function redeemAndBorrow(uint256 usdcOut) internal {
         uint256 usdcCollateral = supplyAssets(bWETHmId, address(this));
-        console.log("usdcCollateral", usdcCollateral);
         if (usdcCollateral > 0) {
             if (usdcCollateral > usdcOut) {
                 morphoWithdrawCollateral(bWETHmId, usdcOut);
             } else {
-                console.log("(1)");
                 morphoWithdrawCollateral(bWETHmId, usdcCollateral);
-                console.log("(2)");
                 morphoBorrow(bUSDCmId, usdcOut - usdcCollateral, 0);
             }
         } else {
-            console.log("(3)");
             morphoBorrow(bUSDCmId, usdcOut, 0);
         }
+    }
+
+    function adjustForFeesDown(
+        uint256 amount
+    ) public view returns (uint256 amountAdjusted) {
+        console.log("> amount specified", amount);
+        amountAdjusted = amount - (amount * getSwapFees()) / 1e18;
+        console.log("> amount adjusted ", amountAdjusted);
+    }
+
+    function adjustForFeesUp(
+        uint256 amount
+    ) public view returns (uint256 amountAdjusted) {
+        console.log("> amount specified", amount);
+        amountAdjusted = amount + (amount * getSwapFees()) / 1e18;
+        console.log("> amount adjusted ", amountAdjusted);
+    }
+
+    function getSwapFees() public view returns (uint256) {
+        (, int256 RV7, , , ) = AggregatorV3Interface(
+            ALMBaseLib.CHAINLINK_7_DAYS_VOL
+        ).latestRoundData();
+        (, int256 RV30, , , ) = AggregatorV3Interface(
+            ALMBaseLib.CHAINLINK_30_DAYS_VOL
+        ).latestRoundData();
+        return ALMMathLib.calculateSwapFee(RV7 * 1e18, RV30 * 1e18);
     }
 }

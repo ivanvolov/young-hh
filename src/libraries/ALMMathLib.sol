@@ -88,6 +88,19 @@ library ALMMathLib {
             );
     }
 
+    function calculateSwapFee(
+        int256 RV7,
+        int256 RV30
+    ) internal pure returns (uint256) {
+        int256 F0 = 3000000000000000; // 0.003
+        int256 alpha = 2049000000000000000; // 2.049
+        int256 minFee = 500000000000000; //0.05%
+        int256 maxFess = 5000000000000000; //0.5%
+
+        int256 R = (alpha * (((RV7 * 1e18) / RV30) - 1e18)) / 1e18;
+        return uint256(max(minFee, min(maxFess, (F0 * (1e18 + R)) / 1e18)));
+    }
+
     // --- Helpers ---
 
     function getSqrtPriceAtTick(int24 tick) internal pure returns (uint160) {
@@ -102,5 +115,13 @@ library ALMMathLib {
     function toUint160(uint256 value) internal pure returns (uint160) {
         require(value <= type(uint160).max, "MH2");
         return uint160(value);
+    }
+
+    function max(int256 a, int256 b) internal pure returns (int256) {
+        return a > b ? a : b;
+    }
+
+    function min(int256 a, int256 b) internal pure returns (int256) {
+        return a < b ? a : b;
     }
 }
