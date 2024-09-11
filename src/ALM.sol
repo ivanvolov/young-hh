@@ -22,6 +22,7 @@ import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Position as MorphoPosition, Id, Market} from "@forks/morpho/IMorpho.sol";
+import {AutomationCompatibleInterface} from "@forks/chainlink/AutomationCompatibleInterface.sol";
 
 /// @title ALM
 /// @author IVikkk
@@ -48,6 +49,11 @@ contract ALM is BaseStrategyHook, ERC721 {
     ) external override returns (bytes4) {
         WETH.approve(address(morpho), type(uint256).max);
         USDC.approve(address(morpho), type(uint256).max);
+
+        USDC.approve(lendingPool, type(uint256).max);
+        WETH.approve(lendingPool, type(uint256).max);
+        USDC.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
+        WETH.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
 
         return ALM.afterInitialize.selector;
     }
@@ -102,7 +108,100 @@ contract ALM is BaseStrategyHook, ERC721 {
         return "";
     }
 
-    // Swapping
+    // --- Rebalance
+
+    function isPriceRebalanceNeeded() public view returns (bool) {
+        int24 tickLastRebalance = ALMMathLib.getTickFromSqrtPrice(
+            sqrtPriceLastRebalance
+        );
+        int24 tickCurrent = ALMMathLib.getTickFromSqrtPrice(sqrtPriceCurrent);
+
+        int24 tickDelta = tickCurrent - tickLastRebalance;
+        tickDelta = tickDelta > 0 ? tickDelta : -tickDelta;
+
+        return tickDelta > 2000;
+    }
+
+    function rebalance() public {
+        if (!isPriceRebalanceNeeded()) revert NoRebalanceNeeded();
+
+        morphoSync(bUSDCmId);
+        morphoSync(bWETHmId);
+
+        uint256 usdcToRepay = borrowAssets(bUSDCmId, address(this));
+        uint256 usdcSupplied = suppliedAssets(bWETHmId, address(this));
+        if (usdcSupplied > 0) {
+            uint256 deltaUSDC = usdcSupplied >= usdcToRepay
+                ? usdcToRepay
+                : usdcSupplied;
+            morphoWithdrawCollateral(bWETHmId, deltaUSDC);
+            usdcToRepay -= deltaUSDC;
+        }
+        if (usdcToRepay > 0) {
+            address[] memory assets = new address[](1);
+            uint256[] memory modes = new uint256[](1);
+            uint256[] memory amounts = new uint256[](1);
+            modes[0] = 0;
+            assets[0] = address(USDC);
+            amounts[0] = usdcToRepay;
+
+            LENDING_POOL.flashLoan(
+                address(this),
+                assets,
+                amounts,
+                modes,
+                address(this),
+                abi.encode(""),
+                0
+            );
+        }
+
+        sqrtPriceLastRebalance = sqrtPriceCurrent;
+    }
+
+    function executeOperation(
+        address[] calldata,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums,
+        address,
+        bytes calldata
+    ) external returns (bool) {
+        require(msg.sender == lendingPool, "M0");
+        logBalances();
+        uint256 usdcBorrowed = borrowAssets(bUSDCmId, address(this));
+        morphoReplay(bUSDCmId, usdcBorrowed, 0);
+
+        uint256 wethCollateral = suppliedCollateral(bUSDCmId, address(this));
+        console.log("wethCollateral", wethCollateral);
+        morphoWithdrawCollateral(bUSDCmId, wethCollateral - 1e12);
+
+        ALMBaseLib.swapExactOutput(
+            address(WETH),
+            address(USDC),
+            amounts[0] + premiums[0]
+        );
+        morphoSupplyCollateral(bUSDCmId, WETH.balanceOf(address(this)));
+        return true;
+    }
+
+    // --- Chainlink Automation
+
+    function checkUpkeep(
+        bytes calldata checkData
+    )
+        external
+        view
+        override
+        returns (bool upkeepNeeded, bytes memory performData)
+    {
+        return (isPriceRebalanceNeeded(), checkData);
+    }
+
+    function performUpkeep(bytes calldata) external override {
+        rebalance();
+    }
+
+    // ---  Swapping
     function beforeSwap(
         address,
         PoolKey calldata key,
@@ -250,13 +349,13 @@ contract ALM is BaseStrategyHook, ERC721 {
     }
 
     function redeemAndBorrow(uint256 usdcOut) internal {
-        uint256 usdcCollateral = supplyAssets(bWETHmId, address(this));
-        if (usdcCollateral > 0) {
-            if (usdcCollateral > usdcOut) {
+        uint256 usdcSupplied = suppliedAssets(bWETHmId, address(this));
+        if (usdcSupplied > 0) {
+            if (usdcSupplied > usdcOut) {
                 morphoWithdrawCollateral(bWETHmId, usdcOut);
             } else {
-                morphoWithdrawCollateral(bWETHmId, usdcCollateral);
-                morphoBorrow(bUSDCmId, usdcOut - usdcCollateral, 0);
+                morphoWithdrawCollateral(bWETHmId, usdcSupplied);
+                morphoBorrow(bUSDCmId, usdcOut - usdcSupplied, 0);
             }
         } else {
             morphoBorrow(bUSDCmId, usdcOut, 0);

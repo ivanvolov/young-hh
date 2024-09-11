@@ -107,6 +107,12 @@ library ALMMathLib {
         return TickMath.getSqrtPriceAtTick(tick);
     }
 
+    function getTickFromSqrtPrice(
+        uint160 sqrtPriceX96
+    ) internal pure returns (int24) {
+        return TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+    }
+
     function toInt24(int256 value) internal pure returns (int24) {
         require(value >= type(int24).min && value <= type(int24).max, "MH1");
         return int24(value);

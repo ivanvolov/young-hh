@@ -18,12 +18,23 @@ import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {IERC20Minimal as IERC20} from "v4-core/interfaces/external/IERC20Minimal.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {IWETH} from "@forks/IWETH.sol";
-import {IMorpho, Id} from "@forks/morpho/IMorpho.sol";
+import {IMorpho, Id, Position as MorphoPosition} from "@forks/morpho/IMorpho.sol";
 import {IALM} from "@src/interfaces/IALM.sol";
 import {MorphoBalancesLib} from "@forks/morpho/libraries/MorphoBalancesLib.sol";
 
+interface ILendingPool {
+    function flashLoan(
+        address receiverAddress,
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata modes,
+        address onBehalfOf,
+        bytes calldata params,
+        uint16 referralCode
+    ) external;
+}
+
 abstract contract BaseStrategyHook is BaseHook, IALM {
-    error NotHookDeployer();
     using CurrencySettler for Currency;
 
     IWETH WETH = IWETH(ALMBaseLib.WETH);
@@ -34,8 +45,13 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
 
     uint128 public liquidity;
     uint160 public sqrtPriceCurrent;
+    uint160 public sqrtPriceLastRebalance;
     int24 public tickLower;
     int24 public tickUpper;
+
+    // aavev2
+    address constant lendingPool = 0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9;
+    ILendingPool constant LENDING_POOL = ILendingPool(lendingPool);
 
     function setBoundaries(
         uint160 initialSQRTPrice,
@@ -45,6 +61,7 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         tickUpper = _tickUpper;
         tickLower = _tickLower;
         sqrtPriceCurrent = initialSQRTPrice;
+        sqrtPriceLastRebalance = initialSQRTPrice;
     }
 
     IMorpho public constant morpho =
@@ -154,7 +171,7 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         );
     }
 
-    function supplyAssets(
+    function suppliedAssets(
         Id morphoMarketId,
         address owner
     ) internal view returns (uint256) {
@@ -164,6 +181,26 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
                 morpho.idToMarketParams(morphoMarketId),
                 owner
             );
+    }
+
+    function borrowAssets(
+        Id morphoMarketId,
+        address owner
+    ) internal view returns (uint256) {
+        return
+            MorphoBalancesLib.expectedBorrowAssets(
+                morpho,
+                morpho.idToMarketParams(morphoMarketId),
+                owner
+            );
+    }
+
+    function suppliedCollateral(
+        Id morphoMarketId,
+        address owner
+    ) internal view returns (uint256) {
+        MorphoPosition memory p = morpho.position(morphoMarketId, owner);
+        return p.collateral;
     }
 
     function morphoSync(Id morphoMarketId) internal {

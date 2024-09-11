@@ -176,6 +176,27 @@ contract ALMTest is ALMTestBase {
         assertEq(hook.sqrtPriceCurrent(), 1181127027798823685202679804768253);
     }
 
+    function test_simulate_chainlink_automation() public {
+        test_deposit();
+
+        deal(address(WETH), address(swapper.addr), 100 ether);
+        swapWETH_USDC_In(1 ether);
+
+        (bool upkeepNeeded, bytes memory performData) = hook.checkUpkeep("");
+        assertEq(upkeepNeeded, false);
+
+        swapWETH_USDC_In(99 ether);
+
+        (upkeepNeeded, performData) = hook.checkUpkeep("");
+        assertEq(upkeepNeeded, true);
+
+        hook.performUpkeep(performData);
+
+        assertEqBalanceState(address(hook), 0, 0);
+        assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
+        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, 97444336310761222214);
+    }
+
     // -- Helpers --
 
     function init_hook() internal {

@@ -3,12 +3,13 @@ pragma solidity ^0.8.25;
 
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {PoolId} from "v4-core/types/PoolId.sol";
+import {AutomationCompatibleInterface} from "@forks/chainlink/AutomationCompatibleInterface.sol";
 
-interface IALM {
+interface IALM is AutomationCompatibleInterface {
     error ZeroLiquidity();
+    error NotHookDeployer();
     error AddLiquidityThroughHook();
-    error NotAnALMOwner();
-    error NoSwapWillOccur();
+    error NoRebalanceNeeded();
 
     struct ALMInfo {
         uint256 amount;

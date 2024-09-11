@@ -217,7 +217,7 @@ abstract contract ALMTestBase is Test, Deployers {
     function assertEqMorphoA(
         Id marketId,
         address owner,
-        uint256 _supplyAssets,
+        uint256 _suppliedAssets,
         uint256 _borrowAssets,
         uint256 _collateral
     ) public view {
@@ -230,7 +230,7 @@ abstract contract ALMTestBase is Test, Deployers {
                 morpho.idToMarketParams(marketId),
                 owner
             ),
-            _supplyAssets,
+            _suppliedAssets,
             10,
             "supply assets not equal"
         );
