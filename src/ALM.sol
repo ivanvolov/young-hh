@@ -160,7 +160,6 @@ contract ALM is BaseStrategyHook, ERC721 {
         }
     }
 
-    //TODO: this could be wrapped into one function, but let it be explicit till the end of the development
     function getZeroForOneDeltas(
         int256 amountSpecified
     )
@@ -177,7 +176,6 @@ contract ALM is BaseStrategyHook, ERC721 {
             console.log("> amount specified positive");
             wethOut = uint256(amountSpecified);
 
-            //TODO: this sqrtPriceNext is not always correct, especially when we are doing reverse swaps. Use another method to calculate it
             (usdcIn, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
                 sqrtPriceCurrent,
                 liquidity,

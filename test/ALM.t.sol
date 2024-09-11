@@ -196,7 +196,6 @@ contract ALMTest is ALMTestBase {
 
         uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
 
-        //TODO: remove block binding in tests, it could be not needed. But do it after oracles
         (key, ) = initPool(
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),
