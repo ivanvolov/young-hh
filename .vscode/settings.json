@@ -18,5 +18,10 @@
     "**/.git": true,
     // "**/lib": true
   },
+  "git.ignoredRepositories": [
+    "lib/forge-std",
+    "lib/v4-core",
+    "lib/v4-periphery"
+  ],
   "cSpell.enabled": true
 }
