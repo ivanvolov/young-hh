@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
+import "forge-std/console.sol";
+
 import "@src/interfaces/ILendingAdapter.sol";
 import {IMorpho, Id, Position} from "@forks/morpho/IMorpho.sol";
 import {MorphoBalancesLib} from "@forks/morpho/libraries/MorphoBalancesLib.sol";
@@ -23,14 +25,17 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
 
     constructor(address _authorizedV4Pool) Ownable(msg.sender) {
         authorizedV4Pool = _authorizedV4Pool;
+
+        WETH.approve(address(morpho), type(uint256).max);
+        USDC.approve(address(morpho), type(uint256).max);
     }
 
-    function setDepositWETHmId(bytes32 _depositUSDCmId) external onlyOwner {
-        depositUSDCmId = Id.wrap(_depositUSDCmId);
+    function setDepositUSDCmId(Id _depositUSDCmId) external onlyOwner {
+        depositUSDCmId = _depositUSDCmId;
     }
 
-    function setBorrowUSDCmId(bytes32 _borrowUSDCmId) external onlyOwner {
-        borrowUSDCmId = Id.wrap(_borrowUSDCmId);
+    function setBorrowUSDCmId(Id _borrowUSDCmId) external onlyOwner {
+        borrowUSDCmId = _borrowUSDCmId;
     }
 
     function setAuthorizedV4Pool(address _authorizedV4Pool) external onlyOwner {
@@ -105,7 +110,9 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
     }
 
     function supply(uint256 amountUsdc) external onlyAuthorizedV4Pool {
+        console.log("> supply", amountUsdc);
         USDC.transferFrom(authorizedV4Pool, address(this), amountUsdc);
+        console.log("USDC is taken away, nice");
         morpho.supply(
             morpho.idToMarketParams(depositUSDCmId),
             amountUsdc,

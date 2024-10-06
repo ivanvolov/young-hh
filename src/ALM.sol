@@ -41,9 +41,6 @@ contract ALM is BaseStrategyHook, ERC721 {
         int24 tick,
         bytes calldata
     ) external override returns (bytes4) {
-        WETH.approve(address(lendingAdapter), type(uint256).max);
-        USDC.approve(address(lendingAdapter), type(uint256).max);
-
         USDC.approve(lendingPool, type(uint256).max);
         WETH.approve(lendingPool, type(uint256).max);
         USDC.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
@@ -126,31 +123,20 @@ contract ALM is BaseStrategyHook, ERC721 {
 
         uint256 usdcToRepay = lendingAdapter.getBorrowed();
         if (usdcToRepay > 0) {
-            // USDC debt
-            // if (usdcSupplied > 0) {
-            //     uint256 deltaUSDC = usdcSupplied >= usdcToRepay
-            //         ? usdcToRepay
-            //         : usdcSupplied;
-            //     lendingAdapter.withdraw(deltaUSDC);
-            //     usdcToRepay -= deltaUSDC;
-            // }
-            // if (usdcToRepay > 0) {
-            //     address[] memory assets = new address[](1);
-            //     uint256[] memory modes = new uint256[](1);
-            //     uint256[] memory amounts = new uint256[](1);
-            //     modes[0] = 0;
-            //     assets[0] = address(USDC);
-            //     amounts[0] = usdcToRepay;
-            //     LENDING_POOL.flashLoan(
-            //         address(this),
-            //         assets,
-            //         amounts,
-            //         modes,
-            //         address(this),
-            //         abi.encode(""),
-            //         0
-            //     );
-            // }
+            // USDC debt. Borrow usdc to repay, repay. Swap ETH to USDC. Return back.
+            address[] memory assets = new address[](1);
+            uint256[] memory amounts = new uint256[](1);
+            uint256[] memory modes = new uint256[](1);
+            (assets[0], amounts[0], modes[0]) = (address(USDC), usdcToRepay, 0);
+            LENDING_POOL.flashLoan(
+                address(this),
+                assets,
+                amounts,
+                modes,
+                address(this),
+                "",
+                0
+            );
         } else {
             // USDC supplied: just swap USDC to ETH
             uint256 usdcSupplied = lendingAdapter.getSupplied();
@@ -177,12 +163,8 @@ contract ALM is BaseStrategyHook, ERC721 {
     ) external returns (bool) {
         require(msg.sender == lendingPool, "M0");
         logBalances();
-        uint256 usdcBorrowed = lendingAdapter.getBorrowed();
-        lendingAdapter.replay(usdcBorrowed);
-
-        uint256 wethCollateral = lendingAdapter.getCollateral();
-        console.log("wethCollateral", wethCollateral);
-        lendingAdapter.removeCollateral(wethCollateral - 1e12); //TODO: what is this?)
+        lendingAdapter.replay(amounts[0]);
+        lendingAdapter.removeCollateral(lendingAdapter.getCollateral());
 
         ALMBaseLib.swapExactOutput(
             address(WETH),

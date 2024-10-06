@@ -15,6 +15,7 @@ import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface
 import {ALM} from "@src/ALM.sol";
 import {IALM} from "@src/interfaces/IALM.sol";
 import {ALMBaseLib} from "@src/libraries/ALMBaseLib.sol";
+import {MorphoLendingAdapter} from "@src/MorphoLendingAdapter.sol";
 
 contract ALMTest is ALMTestBase {
     using PoolIdLibrary for PoolId;
@@ -43,26 +44,26 @@ contract ALMTest is ALMTestBase {
         // ** Supply collateral
         deal(address(WETH), address(alice.addr), 1 ether);
         morpho.supplyCollateral(
-            morpho.idToMarketParams(bUSDCmId),
+            morpho.idToMarketParams(borrowUSDCmId),
             1 ether,
             alice.addr,
             ""
         );
 
-        assertEqMorphoS(bUSDCmId, alice.addr, 0, 0, 1 ether);
+        assertEqMorphoS(borrowUSDCmId, alice.addr, 0, 0, 1 ether);
         assertEqBalanceStateZero(alice.addr);
 
         // ** Borrow
         uint256 borrowUSDC = 4000 * 1e6;
         (, uint256 shares) = morpho.borrow(
-            morpho.idToMarketParams(bUSDCmId),
+            morpho.idToMarketParams(borrowUSDCmId),
             borrowUSDC,
             0,
             alice.addr,
             alice.addr
         );
 
-        assertEqMorphoS(bUSDCmId, alice.addr, 0, shares, 1 ether);
+        assertEqMorphoS(borrowUSDCmId, alice.addr, 0, shares, 1 ether);
         assertEqBalanceState(alice.addr, 0, borrowUSDC);
         vm.stopPrank();
     }
@@ -80,8 +81,8 @@ contract ALMTest is ALMTestBase {
 
         assertEqBalanceStateZero(alice.addr);
         assertEqBalanceStateZero(address(hook));
-        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep);
-        assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
+        assertEqMorphoA(borrowUSDCmId, 0, 0, amountToDep);
+        assertEqMorphoA(depositUSDCmId, 0, 0, 0);
 
         assertEq(hook.sqrtPriceCurrent(), 1182773400228691521900860642689024);
     }
@@ -99,8 +100,8 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, deltaWETH, 0);
         assertEqBalanceState(address(hook), 0, 0);
 
-        assertEqMorphoA(bWETHmId, address(hook), 0, 0, usdcToSwap);
-        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep - deltaWETH);
+        assertEqMorphoA(depositUSDCmId, usdcToSwap, 0, 0);
+        assertEqMorphoA(borrowUSDCmId, 0, 0, amountToDep - deltaWETH);
 
         assertEq(hook.sqrtPriceCurrent(), 1181128917371009610520611806230478);
     }
@@ -119,8 +120,8 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, deltaWETH, 0);
         assertEqBalanceState(address(hook), 0, 0);
 
-        assertEqMorphoA(bWETHmId, address(hook), 0, 0, usdcToSwapQ);
-        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, amountToDep - deltaWETH);
+        assertEqMorphoA(depositUSDCmId, usdcToSwapQ, 0, 0);
+        assertEqMorphoA(borrowUSDCmId, 0, 0, amountToDep - deltaWETH);
 
         assertEq(hook.sqrtPriceCurrent(), 1184420172695703616430662028218963);
     }
@@ -138,14 +139,8 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, 0, deltaUSDC);
         assertEqBalanceState(address(hook), 0, 0);
 
-        assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
-        assertEqMorphoA(
-            bUSDCmId,
-            address(hook),
-            0,
-            deltaUSDC,
-            amountToDep + wethToSwap
-        );
+        assertEqMorphoA(depositUSDCmId, 0, 0, 0);
+        assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwap);
 
         assertEq(hook.sqrtPriceCurrent(), 1184420172695703616430662028218963);
     }
@@ -164,14 +159,8 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, 0, deltaUSDC);
         assertEqBalanceState(address(hook), 0, 0);
 
-        assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
-        assertEqMorphoA(
-            bUSDCmId,
-            address(hook),
-            0,
-            deltaUSDC,
-            amountToDep + wethToSwapQ
-        );
+        assertEqMorphoA(depositUSDCmId, 0, 0, 0);
+        assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwapQ);
 
         assertEq(hook.sqrtPriceCurrent(), 1181127027798823685202679804768253);
     }
@@ -187,16 +176,18 @@ contract ALMTest is ALMTestBase {
                     Hooks.AFTER_INITIALIZE_FLAG
             )
         );
-        deployCodeTo(
-            "ALM.sol",
-            abi.encode(manager, bWETHmId, bUSDCmId),
-            hookAddress
-        );
+        deployCodeTo("ALM.sol", abi.encode(manager), hookAddress);
         ALM _hook = ALM(hookAddress);
+
+        lendingAdapter = new MorphoLendingAdapter(address(manager));
+        lendingAdapter.setDepositUSDCmId(depositUSDCmId);
+        lendingAdapter.setBorrowUSDCmId(borrowUSDCmId);
+        lendingAdapter.setAuthorizedV4Pool(address(_hook));
+
+        _hook.setLendingAdapter(address(lendingAdapter));
 
         uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
 
-        //TODO: remove block binding in tests, it could be not needed. But do it after oracles
         (key, ) = initPool(
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),
@@ -227,24 +218,21 @@ contract ALMTest is ALMTestBase {
 
         modifyMockOracle(oracle, 4487851340816804029821232973); //4487 usdc for eth
 
-        bUSDCmId = create_morpho_market(
+        borrowUSDCmId = create_morpho_market(
             address(USDC),
             address(WETH),
             915000000000000000,
             oracle
         );
 
-        // Providing some ETH
-        provideLiquidityToMorpho(bUSDCmId, 1000 ether);
+        provideLiquidityToMorpho(borrowUSDCmId, 1000 ether); // Providing some ETH
 
-        bWETHmId = create_morpho_market(
-            address(WETH),
+        depositUSDCmId = create_morpho_market(
             address(USDC),
-            915000000000000000,
+            address(WETH),
+            945000000000000000,
             oracle
         );
-
-        // We won't provide WETH cause we will not borrow it from HERE. This market is only for interest mining.
     }
 
     function presetChainlinkOracles() internal {

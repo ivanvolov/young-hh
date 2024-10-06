@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
+import {Id} from "@forks/morpho/IMorpho.sol";
+
 interface ILendingAdapter {
     // Borrow market functions
     function getBorrowed() external view returns (uint256);
@@ -23,8 +25,14 @@ interface ILendingAdapter {
     function withdraw(uint256 amount) external;
 
     // Sync market functions
-
     function syncDeposit() external;
 
     function syncBorrow() external;
+
+    // Params
+    function setBorrowUSDCmId(Id) external;
+
+    function setDepositUSDCmId(Id) external;
+
+    function setAuthorizedV4Pool(address) external;
 }

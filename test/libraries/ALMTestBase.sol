@@ -19,6 +19,7 @@ import {TestERC20} from "v4-core/test/TestERC20.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {TestAccount, TestAccountLib} from "@test/libraries/TestAccountLib.t.sol";
 import {MorphoBalancesLib} from "@forks/morpho/libraries/MorphoBalancesLib.sol";
+import {ILendingAdapter} from "@src/interfaces/ILendingAdapter.sol";
 
 abstract contract ALMTestBase is Test, Deployers {
     using TestAccountLib for TestAccount;
@@ -28,13 +29,15 @@ abstract contract ALMTestBase is Test, Deployers {
     TestERC20 USDC;
     TestERC20 WETH;
 
+    ILendingAdapter lendingAdapter;
+
     TestAccount marketCreator;
     TestAccount morphoLpProvider;
     TestAccount alice;
     TestAccount swapper;
 
-    Id bWETHmId;
-    Id bUSDCmId;
+    Id depositUSDCmId;
+    Id borrowUSDCmId;
     IMorpho morpho = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
     uint256 almId;
 
@@ -185,6 +188,22 @@ abstract contract ALMTestBase is Test, Deployers {
     }
 
     // -- Custom assertions -- //
+
+    function assertEqMorphoS(
+        Id marketId,
+        uint256 _supplyShares,
+        uint256 _borrowShares,
+        uint256 _collateral
+    ) public view {
+        assertEqMorphoS(
+            marketId,
+            address(lendingAdapter),
+            _supplyShares,
+            _borrowShares,
+            _collateral
+        );
+    }
+
     function assertEqMorphoS(
         Id marketId,
         address owner,
@@ -211,6 +230,21 @@ abstract contract ALMTestBase is Test, Deployers {
             _collateral,
             10000,
             "collateral not equal"
+        );
+    }
+
+    function assertEqMorphoA(
+        Id marketId,
+        uint256 _suppliedAssets,
+        uint256 _borrowAssets,
+        uint256 _collateral
+    ) public view {
+        assertEqMorphoA(
+            marketId,
+            address(lendingAdapter),
+            _suppliedAssets,
+            _borrowAssets,
+            _collateral
         );
     }
 
