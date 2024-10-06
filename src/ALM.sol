@@ -22,7 +22,6 @@ import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Position as MorphoPosition, Id, Market} from "@forks/morpho/IMorpho.sol";
-import {AutomationCompatibleInterface} from "@forks/chainlink/AutomationCompatibleInterface.sol";
 
 /// @title ALM
 /// @author IVikkk
@@ -32,13 +31,8 @@ contract ALM is BaseStrategyHook, ERC721 {
     using CurrencySettler for Currency;
 
     constructor(
-        IPoolManager manager,
-        Id _bWETHmId,
-        Id _bUSDCmId
-    ) BaseStrategyHook(manager) ERC721("ALM", "ALM") {
-        bWETHmId = _bWETHmId;
-        bUSDCmId = _bUSDCmId;
-    }
+        IPoolManager manager
+    ) BaseStrategyHook(manager) ERC721("ALM", "ALM") {}
 
     function afterInitialize(
         address,
@@ -47,8 +41,8 @@ contract ALM is BaseStrategyHook, ERC721 {
         int24 tick,
         bytes calldata
     ) external override returns (bytes4) {
-        WETH.approve(address(morpho), type(uint256).max);
-        USDC.approve(address(morpho), type(uint256).max);
+        WETH.approve(address(lendingAdapter), type(uint256).max);
+        USDC.approve(address(lendingAdapter), type(uint256).max);
 
         USDC.approve(lendingPool, type(uint256).max);
         WETH.approve(lendingPool, type(uint256).max);
@@ -89,7 +83,7 @@ contract ALM is BaseStrategyHook, ERC721 {
         );
 
         WETH.transferFrom(msg.sender, address(this), amount1);
-        morphoSupplyCollateral(bUSDCmId, WETH.balanceOf(address(this)));
+        lendingAdapter.addCollateral(WETH.balanceOf(address(this)));
 
         almId = almIdCounter;
         almInfo[almId] = ALMInfo({
@@ -125,35 +119,50 @@ contract ALM is BaseStrategyHook, ERC721 {
     function rebalance() public {
         if (!isPriceRebalanceNeeded()) revert NoRebalanceNeeded();
 
-        morphoSync(bUSDCmId);
-        morphoSync(bWETHmId);
+        lendingAdapter.syncBorrow();
+        lendingAdapter.syncDeposit();
 
-        uint256 usdcToRepay = borrowAssets(bUSDCmId, address(this));
-        uint256 usdcSupplied = suppliedAssets(bWETHmId, address(this));
-        if (usdcSupplied > 0) {
-            uint256 deltaUSDC = usdcSupplied >= usdcToRepay
-                ? usdcToRepay
-                : usdcSupplied;
-            morphoWithdrawCollateral(bWETHmId, deltaUSDC);
-            usdcToRepay -= deltaUSDC;
-        }
+        // TLDR: we have two cases: have usdc; have usdc debt;
+
+        uint256 usdcToRepay = lendingAdapter.getBorrowed();
         if (usdcToRepay > 0) {
-            address[] memory assets = new address[](1);
-            uint256[] memory modes = new uint256[](1);
-            uint256[] memory amounts = new uint256[](1);
-            modes[0] = 0;
-            assets[0] = address(USDC);
-            amounts[0] = usdcToRepay;
-
-            LENDING_POOL.flashLoan(
-                address(this),
-                assets,
-                amounts,
-                modes,
-                address(this),
-                abi.encode(""),
-                0
-            );
+            // USDC debt
+            // if (usdcSupplied > 0) {
+            //     uint256 deltaUSDC = usdcSupplied >= usdcToRepay
+            //         ? usdcToRepay
+            //         : usdcSupplied;
+            //     lendingAdapter.withdraw(deltaUSDC);
+            //     usdcToRepay -= deltaUSDC;
+            // }
+            // if (usdcToRepay > 0) {
+            //     address[] memory assets = new address[](1);
+            //     uint256[] memory modes = new uint256[](1);
+            //     uint256[] memory amounts = new uint256[](1);
+            //     modes[0] = 0;
+            //     assets[0] = address(USDC);
+            //     amounts[0] = usdcToRepay;
+            //     LENDING_POOL.flashLoan(
+            //         address(this),
+            //         assets,
+            //         amounts,
+            //         modes,
+            //         address(this),
+            //         abi.encode(""),
+            //         0
+            //     );
+            // }
+        } else {
+            // USDC supplied: just swap USDC to ETH
+            uint256 usdcSupplied = lendingAdapter.getSupplied();
+            if (usdcSupplied > 0) {
+                lendingAdapter.withdraw(usdcSupplied);
+                uint256 ethOut = ALMBaseLib.swapExactInput(
+                    address(USDC),
+                    address(WETH),
+                    usdcSupplied
+                );
+                lendingAdapter.addCollateral(ethOut);
+            }
         }
 
         sqrtPriceLastRebalance = sqrtPriceCurrent;
@@ -168,37 +177,20 @@ contract ALM is BaseStrategyHook, ERC721 {
     ) external returns (bool) {
         require(msg.sender == lendingPool, "M0");
         logBalances();
-        uint256 usdcBorrowed = borrowAssets(bUSDCmId, address(this));
-        morphoReplay(bUSDCmId, usdcBorrowed, 0);
+        uint256 usdcBorrowed = lendingAdapter.getBorrowed();
+        lendingAdapter.replay(usdcBorrowed);
 
-        uint256 wethCollateral = suppliedCollateral(bUSDCmId, address(this));
+        uint256 wethCollateral = lendingAdapter.getCollateral();
         console.log("wethCollateral", wethCollateral);
-        morphoWithdrawCollateral(bUSDCmId, wethCollateral - 1e12);
+        lendingAdapter.removeCollateral(wethCollateral - 1e12); //TODO: what is this?)
 
         ALMBaseLib.swapExactOutput(
             address(WETH),
             address(USDC),
             amounts[0] + premiums[0]
         );
-        morphoSupplyCollateral(bUSDCmId, WETH.balanceOf(address(this)));
+        lendingAdapter.addCollateral(WETH.balanceOf(address(this)));
         return true;
-    }
-
-    // --- Chainlink Automation
-
-    function checkUpkeep(
-        bytes calldata checkData
-    )
-        external
-        view
-        override
-        returns (bool upkeepNeeded, bytes memory performData)
-    {
-        return (isPriceRebalanceNeeded(), checkData);
-    }
-
-    function performUpkeep(bytes calldata) external override {
-        rebalance();
     }
 
     // ---  Swapping
@@ -208,8 +200,8 @@ contract ALM is BaseStrategyHook, ERC721 {
         IPoolManager.SwapParams calldata params,
         bytes calldata
     ) external override returns (bytes4, BeforeSwapDelta, uint24) {
-        morphoSync(bWETHmId);
-        morphoSync(bUSDCmId);
+        lendingAdapter.syncDeposit();
+        lendingAdapter.syncBorrow();
 
         if (params.zeroForOne) {
             console.log("> WETH price go up...");
@@ -225,11 +217,11 @@ contract ALM is BaseStrategyHook, ERC721 {
             // They will be sending Token 0 to the PM, creating a debit of Token 0 in the PM
             // We will take actual ERC20 Token 0 from the PM and keep it in the hook and create an equivalent credit for that Token 0 since it is ours!
             key.currency0.take(poolManager, address(this), usdcIn, false);
-            morphoSupplyCollateral(bWETHmId, usdcIn);
+            repayAndSupply(usdcIn); // Notice: repaying if needed to reduce lending interest.
 
             // We don't have token 1 on our account yet, so we need to withdraw WETH from the Morpho.
             // We also need to create a debit so user could take it back from the PM.
-            morphoWithdrawCollateral(bUSDCmId, wethOut);
+            lendingAdapter.removeCollateral(wethOut);
             key.currency1.settle(poolManager, address(this), wethOut, false);
 
             sqrtPriceCurrent = sqrtPriceNext;
@@ -246,9 +238,9 @@ contract ALM is BaseStrategyHook, ERC721 {
                 uint160 sqrtPriceNext
             ) = getOneForZeroDeltas(params.amountSpecified);
 
-            // Put extra ETH to Morpho
+            // Put extra WETH to Morpho
             key.currency1.take(poolManager, address(this), wethIn, false);
-            morphoSupplyCollateral(bUSDCmId, wethIn);
+            lendingAdapter.addCollateral(wethIn);
 
             // Ensure we have enough USDC. Redeem from reserves and borrow if needed.
             redeemAndBorrow(usdcOut);
@@ -259,6 +251,7 @@ contract ALM is BaseStrategyHook, ERC721 {
         }
     }
 
+    //TODO: this could be wrapped into one function, but let it be explicit till the end of the development
     function getZeroForOneDeltas(
         int256 amountSpecified
     )
@@ -275,6 +268,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             console.log("> amount specified positive");
             wethOut = uint256(amountSpecified);
 
+            //TODO: this sqrtPriceNext is not always correct, especially when we are doing reverse swaps. Use another method to calculate it
             (usdcIn, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
                 sqrtPriceCurrent,
                 liquidity,
@@ -349,17 +343,24 @@ contract ALM is BaseStrategyHook, ERC721 {
     }
 
     function redeemAndBorrow(uint256 usdcOut) internal {
-        uint256 usdcSupplied = suppliedAssets(bWETHmId, address(this));
-        if (usdcSupplied > 0) {
-            if (usdcSupplied > usdcOut) {
-                morphoWithdrawCollateral(bWETHmId, usdcOut);
-            } else {
-                morphoWithdrawCollateral(bWETHmId, usdcSupplied);
-                morphoBorrow(bUSDCmId, usdcOut - usdcSupplied, 0);
-            }
-        } else {
-            morphoBorrow(bUSDCmId, usdcOut, 0);
-        }
+        uint256 withdrawAmount = ALMMathLib.min(
+            lendingAdapter.getSupplied(),
+            usdcOut
+        );
+        if (withdrawAmount > 0) lendingAdapter.withdraw(withdrawAmount);
+
+        if (usdcOut > withdrawAmount)
+            lendingAdapter.borrow(usdcOut - withdrawAmount);
+    }
+
+    function repayAndSupply(uint256 amountUSDC) internal {
+        uint256 repayAmount = ALMMathLib.min(
+            lendingAdapter.getBorrowed(),
+            amountUSDC
+        );
+        if (repayAmount > 0) lendingAdapter.replay(repayAmount);
+        if (amountUSDC > repayAmount)
+            lendingAdapter.supply(amountUSDC - repayAmount);
     }
 
     function adjustForFeesDown(

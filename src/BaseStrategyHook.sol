@@ -18,9 +18,10 @@ import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {IERC20Minimal as IERC20} from "v4-core/interfaces/external/IERC20Minimal.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {IWETH} from "@forks/IWETH.sol";
-import {IMorpho, Id, Position as MorphoPosition} from "@forks/morpho/IMorpho.sol";
 import {IALM} from "@src/interfaces/IALM.sol";
 import {MorphoBalancesLib} from "@forks/morpho/libraries/MorphoBalancesLib.sol";
+
+import {ILendingAdapter} from "@src/interfaces/ILendingAdapter.sol";
 
 interface ILendingPool {
     function flashLoan(
@@ -37,11 +38,10 @@ interface ILendingPool {
 abstract contract BaseStrategyHook is BaseHook, IALM {
     using CurrencySettler for Currency;
 
+    ILendingAdapter public lendingAdapter;
+
     IWETH WETH = IWETH(ALMBaseLib.WETH);
     IERC20 USDC = IERC20(ALMBaseLib.USDC);
-
-    Id public immutable bWETHmId;
-    Id public immutable bUSDCmId;
 
     uint128 public liquidity;
     uint160 public sqrtPriceCurrent;
@@ -64,9 +64,6 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         sqrtPriceLastRebalance = initialSQRTPrice;
     }
 
-    IMorpho public constant morpho =
-        IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
-
     bytes internal constant ZERO_BYTES = bytes("");
     address public immutable hookDeployer;
 
@@ -81,6 +78,12 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
         hookDeployer = msg.sender;
+    }
+
+    function setLendingAdapter(
+        address _lendingAdapter
+    ) external onlyHookDeployer {
+        lendingAdapter = ILendingAdapter(_lendingAdapter);
     }
 
     function getHookPermissions()
@@ -115,96 +118,6 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
             console.log("USDC  ", USDC.balanceOf(address(this)));
         if (WETH.balanceOf(address(this)) > 0)
             console.log("WETH  ", WETH.balanceOf(address(this)));
-    }
-
-    // --- Morpho Wrappers ---
-
-    function morphoBorrow(
-        Id morphoMarketId,
-        uint256 amount,
-        uint256 shares
-    ) internal {
-        morpho.borrow(
-            morpho.idToMarketParams(morphoMarketId),
-            amount,
-            shares,
-            address(this),
-            address(this)
-        );
-    }
-
-    function morphoReplay(
-        Id morphoMarketId,
-        uint256 amount,
-        uint256 shares
-    ) internal {
-        morpho.repay(
-            morpho.idToMarketParams(morphoMarketId),
-            amount,
-            shares,
-            address(this),
-            ZERO_BYTES
-        );
-    }
-
-    function morphoWithdrawCollateral(
-        Id morphoMarketId,
-        uint256 amount
-    ) internal {
-        morpho.withdrawCollateral(
-            morpho.idToMarketParams(morphoMarketId),
-            amount,
-            address(this),
-            address(this)
-        );
-    }
-
-    function morphoSupplyCollateral(
-        Id morphoMarketId,
-        uint256 amount
-    ) internal {
-        morpho.supplyCollateral(
-            morpho.idToMarketParams(morphoMarketId),
-            amount,
-            address(this),
-            ZERO_BYTES
-        );
-    }
-
-    function suppliedAssets(
-        Id morphoMarketId,
-        address owner
-    ) internal view returns (uint256) {
-        return
-            MorphoBalancesLib.expectedSupplyAssets(
-                morpho,
-                morpho.idToMarketParams(morphoMarketId),
-                owner
-            );
-    }
-
-    function borrowAssets(
-        Id morphoMarketId,
-        address owner
-    ) internal view returns (uint256) {
-        return
-            MorphoBalancesLib.expectedBorrowAssets(
-                morpho,
-                morpho.idToMarketParams(morphoMarketId),
-                owner
-            );
-    }
-
-    function suppliedCollateral(
-        Id morphoMarketId,
-        address owner
-    ) internal view returns (uint256) {
-        MorphoPosition memory p = morpho.position(morphoMarketId, owner);
-        return p.collateral;
-    }
-
-    function morphoSync(Id morphoMarketId) internal {
-        morpho.accrueInterest(morpho.idToMarketParams(morphoMarketId));
     }
 
     /// @dev Only the hook deployer may call this function

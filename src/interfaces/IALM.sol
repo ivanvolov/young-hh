@@ -3,9 +3,8 @@ pragma solidity ^0.8.25;
 
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {PoolId} from "v4-core/types/PoolId.sol";
-import {AutomationCompatibleInterface} from "@forks/chainlink/AutomationCompatibleInterface.sol";
 
-interface IALM is AutomationCompatibleInterface {
+interface IALM {
     error ZeroLiquidity();
     error NotHookDeployer();
     error AddLiquidityThroughHook();

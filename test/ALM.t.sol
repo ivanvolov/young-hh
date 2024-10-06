@@ -176,27 +176,6 @@ contract ALMTest is ALMTestBase {
         assertEq(hook.sqrtPriceCurrent(), 1181127027798823685202679804768253);
     }
 
-    function test_simulate_chainlink_automation() public {
-        test_deposit();
-
-        deal(address(WETH), address(swapper.addr), 100 ether);
-        swapWETH_USDC_In(1 ether);
-
-        (bool upkeepNeeded, bytes memory performData) = hook.checkUpkeep("");
-        assertEq(upkeepNeeded, false);
-
-        swapWETH_USDC_In(99 ether);
-
-        (upkeepNeeded, performData) = hook.checkUpkeep("");
-        assertEq(upkeepNeeded, true);
-
-        hook.performUpkeep(performData);
-
-        assertEqBalanceState(address(hook), 0, 0);
-        assertEqMorphoA(bWETHmId, address(hook), 0, 0, 0);
-        assertEqMorphoA(bUSDCmId, address(hook), 0, 0, 97444336310761222214);
-    }
-
     // -- Helpers --
 
     function init_hook() internal {
@@ -217,6 +196,7 @@ contract ALMTest is ALMTestBase {
 
         uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
 
+        //TODO: remove block binding in tests, it could be not needed. But do it after oracles
         (key, ) = initPool(
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),

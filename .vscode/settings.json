@@ -5,7 +5,7 @@
     "**/cache": true,
     "**/external": true,
     // "**/.vscode": true,
-    "**/cspell.dict": true,
+    // "**/cspell.dict": true,
     "**/.forge-snapshots": true,
     // "**/lib": true,
     "**/out": true,
