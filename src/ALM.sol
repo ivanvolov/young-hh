@@ -17,7 +17,7 @@ import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 
 import {ERC721} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
 import {IERC20} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {BaseStrategyHook} from "@src/BaseStrategyHook.sol";
+import {BaseStrategyHook} from "@src/core/BaseStrategyHook.sol";
 import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface.sol";
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
@@ -41,8 +41,6 @@ contract ALM is BaseStrategyHook, ERC721 {
         int24 tick,
         bytes calldata
     ) external override returns (bytes4) {
-        USDC.approve(lendingPool, type(uint256).max);
-        WETH.approve(lendingPool, type(uint256).max);
         USDC.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
         WETH.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
 
@@ -60,7 +58,7 @@ contract ALM is BaseStrategyHook, ERC721 {
     }
 
     function deposit(
-        PoolKey calldata key,
+        PoolKey calldata,
         uint256 amount,
         address to
     ) external override returns (uint256 almId) {
@@ -97,82 +95,6 @@ contract ALM is BaseStrategyHook, ERC721 {
 
     function tokenURI(uint256) public pure override returns (string memory) {
         return "";
-    }
-
-    // --- Rebalance
-
-    function isPriceRebalanceNeeded() public view returns (bool) {
-        int24 tickLastRebalance = ALMMathLib.getTickFromSqrtPrice(
-            sqrtPriceLastRebalance
-        );
-        int24 tickCurrent = ALMMathLib.getTickFromSqrtPrice(sqrtPriceCurrent);
-
-        int24 tickDelta = tickCurrent - tickLastRebalance;
-        tickDelta = tickDelta > 0 ? tickDelta : -tickDelta;
-
-        return tickDelta > 2000;
-    }
-
-    function rebalance() public {
-        if (!isPriceRebalanceNeeded()) revert NoRebalanceNeeded();
-
-        lendingAdapter.syncBorrow();
-        lendingAdapter.syncDeposit();
-
-        // TLDR: we have two cases: have usdc; have usdc debt;
-
-        uint256 usdcToRepay = lendingAdapter.getBorrowed();
-        if (usdcToRepay > 0) {
-            // USDC debt. Borrow usdc to repay, repay. Swap ETH to USDC. Return back.
-            address[] memory assets = new address[](1);
-            uint256[] memory amounts = new uint256[](1);
-            uint256[] memory modes = new uint256[](1);
-            (assets[0], amounts[0], modes[0]) = (address(USDC), usdcToRepay, 0);
-            LENDING_POOL.flashLoan(
-                address(this),
-                assets,
-                amounts,
-                modes,
-                address(this),
-                "",
-                0
-            );
-        } else {
-            // USDC supplied: just swap USDC to ETH
-            uint256 usdcSupplied = lendingAdapter.getSupplied();
-            if (usdcSupplied > 0) {
-                lendingAdapter.withdraw(usdcSupplied);
-                uint256 ethOut = ALMBaseLib.swapExactInput(
-                    address(USDC),
-                    address(WETH),
-                    usdcSupplied
-                );
-                lendingAdapter.addCollateral(ethOut);
-            }
-        }
-
-        sqrtPriceLastRebalance = sqrtPriceCurrent;
-    }
-
-    function executeOperation(
-        address[] calldata,
-        uint256[] calldata amounts,
-        uint256[] calldata premiums,
-        address,
-        bytes calldata
-    ) external returns (bool) {
-        require(msg.sender == lendingPool, "M0");
-        logBalances();
-        lendingAdapter.replay(amounts[0]);
-        lendingAdapter.removeCollateral(lendingAdapter.getCollateral());
-
-        ALMBaseLib.swapExactOutput(
-            address(WETH),
-            address(USDC),
-            amounts[0] + premiums[0]
-        );
-        lendingAdapter.addCollateral(WETH.balanceOf(address(this)));
-        return true;
     }
 
     // ---  Swapping

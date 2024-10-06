@@ -15,7 +15,8 @@ import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface
 import {ALM} from "@src/ALM.sol";
 import {IALM} from "@src/interfaces/IALM.sol";
 import {ALMBaseLib} from "@src/libraries/ALMBaseLib.sol";
-import {MorphoLendingAdapter} from "@src/MorphoLendingAdapter.sol";
+import {MorphoLendingAdapter} from "@src/core/MorphoLendingAdapter.sol";
+import {SRebalanceAdapter} from "@src/core/SRebalanceAdapter.sol";
 
 contract ALMTest is ALMTestBase {
     using PoolIdLibrary for PoolId;
@@ -179,14 +180,20 @@ contract ALMTest is ALMTestBase {
         deployCodeTo("ALM.sol", abi.encode(manager), hookAddress);
         ALM _hook = ALM(hookAddress);
 
-        lendingAdapter = new MorphoLendingAdapter(address(manager));
+        lendingAdapter = new MorphoLendingAdapter();
         lendingAdapter.setDepositUSDCmId(depositUSDCmId);
         lendingAdapter.setBorrowUSDCmId(borrowUSDCmId);
-        lendingAdapter.setAuthorizedV4Pool(address(_hook));
+        lendingAdapter.addAuthorizedCaller(address(_hook));
+        lendingAdapter.addAuthorizedCaller(address(rebalanceAdapter));
 
         _hook.setLendingAdapter(address(lendingAdapter));
 
         uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
+
+        rebalanceAdapter = new SRebalanceAdapter();
+        rebalanceAdapter.setALM(address(_hook));
+        rebalanceAdapter.setLendingAdapter(address(lendingAdapter));
+        rebalanceAdapter.setSqrtPriceLastRebalance(initialSQRTPrice);
 
         (key, ) = initPool(
             Currency.wrap(address(USDC)),

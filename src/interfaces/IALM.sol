@@ -8,7 +8,6 @@ interface IALM {
     error ZeroLiquidity();
     error NotHookDeployer();
     error AddLiquidityThroughHook();
-    error NoRebalanceNeeded();
 
     struct ALMInfo {
         uint256 amount;

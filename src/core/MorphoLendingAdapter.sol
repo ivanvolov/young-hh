@@ -11,9 +11,6 @@ import {IERC20Minimal as IERC20} from "v4-core/interfaces/external/IERC20Minimal
 import {ILendingAdapter} from "@src/interfaces/ILendingAdapter.sol";
 
 contract MorphoLendingAdapter is Ownable, ILendingAdapter {
-    bytes internal constant ZERO_BYTES = bytes("");
-
-    address public authorizedV4Pool;
     Id public depositUSDCmId;
     Id public borrowUSDCmId;
 
@@ -23,9 +20,9 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
     IERC20 WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC20 USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
 
-    constructor(address _authorizedV4Pool) Ownable(msg.sender) {
-        authorizedV4Pool = _authorizedV4Pool;
+    mapping(address => bool) public authorizedCallers;
 
+    constructor() Ownable(msg.sender) {
         WETH.approve(address(morpho), type(uint256).max);
         USDC.approve(address(morpho), type(uint256).max);
     }
@@ -38,8 +35,8 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
         borrowUSDCmId = _borrowUSDCmId;
     }
 
-    function setAuthorizedV4Pool(address _authorizedV4Pool) external onlyOwner {
-        authorizedV4Pool = _authorizedV4Pool;
+    function addAuthorizedCaller(address _caller) external onlyOwner {
+        authorizedCallers[_caller] = true;
     }
 
     // Borrow market
@@ -49,28 +46,28 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
             MorphoBalancesLib.expectedBorrowAssets(
                 morpho,
                 morpho.idToMarketParams(borrowUSDCmId),
-                authorizedV4Pool
+                msg.sender
             );
     }
 
-    function borrow(uint256 amountUSDC) external onlyAuthorizedV4Pool {
+    function borrow(uint256 amountUSDC) external onlyAuthorizedCaller {
         morpho.borrow(
             morpho.idToMarketParams(borrowUSDCmId),
             amountUSDC,
             0,
             address(this),
-            authorizedV4Pool
+            msg.sender
         );
     }
 
-    function replay(uint256 amountUSDC) external onlyAuthorizedV4Pool {
-        USDC.transferFrom(authorizedV4Pool, address(this), amountUSDC);
+    function replay(uint256 amountUSDC) external onlyAuthorizedCaller {
+        USDC.transferFrom(msg.sender, address(this), amountUSDC);
         morpho.repay(
             morpho.idToMarketParams(borrowUSDCmId),
             amountUSDC,
             0,
             address(this),
-            ZERO_BYTES
+            ""
         );
     }
 
@@ -79,22 +76,22 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
         return p.collateral;
     }
 
-    function removeCollateral(uint256 amount) external onlyAuthorizedV4Pool {
+    function removeCollateral(uint256 amount) external onlyAuthorizedCaller {
         morpho.withdrawCollateral(
             morpho.idToMarketParams(borrowUSDCmId),
             amount,
             address(this),
-            authorizedV4Pool
+            msg.sender
         );
     }
 
-    function addCollateral(uint256 amount) external onlyAuthorizedV4Pool {
-        WETH.transferFrom(authorizedV4Pool, address(this), amount);
+    function addCollateral(uint256 amount) external onlyAuthorizedCaller {
+        WETH.transferFrom(msg.sender, address(this), amount);
         morpho.supplyCollateral(
             morpho.idToMarketParams(borrowUSDCmId),
             amount,
             address(this),
-            ZERO_BYTES
+            ""
         );
     }
 
@@ -105,30 +102,28 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
             MorphoBalancesLib.expectedSupplyAssets(
                 morpho,
                 morpho.idToMarketParams(depositUSDCmId),
-                authorizedV4Pool
+                msg.sender
             );
     }
 
-    function supply(uint256 amountUsdc) external onlyAuthorizedV4Pool {
-        console.log("> supply", amountUsdc);
-        USDC.transferFrom(authorizedV4Pool, address(this), amountUsdc);
-        console.log("USDC is taken away, nice");
+    function supply(uint256 amountUsdc) external onlyAuthorizedCaller {
+        USDC.transferFrom(msg.sender, address(this), amountUsdc);
         morpho.supply(
             morpho.idToMarketParams(depositUSDCmId),
             amountUsdc,
             0,
             address(this),
-            ZERO_BYTES
+            ""
         );
     }
 
-    function withdraw(uint256 amountUsdc) external onlyAuthorizedV4Pool {
+    function withdraw(uint256 amountUsdc) external onlyAuthorizedCaller {
         morpho.withdraw(
             morpho.idToMarketParams(depositUSDCmId),
             amountUsdc,
             0,
             address(this),
-            authorizedV4Pool
+            msg.sender
         );
     }
 
@@ -142,9 +137,9 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
 
     // Helpers
 
-    modifier onlyAuthorizedV4Pool() {
+    modifier onlyAuthorizedCaller() {
         require(
-            msg.sender == authorizedV4Pool,
+            authorizedCallers[msg.sender] == true,
             "Caller is not authorized V4 pool"
         );
         _;

@@ -23,18 +23,6 @@ import {MorphoBalancesLib} from "@forks/morpho/libraries/MorphoBalancesLib.sol";
 
 import {ILendingAdapter} from "@src/interfaces/ILendingAdapter.sol";
 
-interface ILendingPool {
-    function flashLoan(
-        address receiverAddress,
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata modes,
-        address onBehalfOf,
-        bytes calldata params,
-        uint16 referralCode
-    ) external;
-}
-
 abstract contract BaseStrategyHook is BaseHook, IALM {
     using CurrencySettler for Currency;
 
@@ -45,24 +33,8 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
 
     uint128 public liquidity;
     uint160 public sqrtPriceCurrent;
-    uint160 public sqrtPriceLastRebalance;
     int24 public tickLower;
     int24 public tickUpper;
-
-    // aavev2
-    address constant lendingPool = 0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9;
-    ILendingPool constant LENDING_POOL = ILendingPool(lendingPool);
-
-    function setBoundaries(
-        uint160 initialSQRTPrice,
-        int24 _tickUpper,
-        int24 _tickLower
-    ) external onlyHookDeployer {
-        tickUpper = _tickUpper;
-        tickLower = _tickLower;
-        sqrtPriceCurrent = initialSQRTPrice;
-        sqrtPriceLastRebalance = initialSQRTPrice;
-    }
 
     bytes internal constant ZERO_BYTES = bytes("");
     address public immutable hookDeployer;
@@ -86,6 +58,16 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         lendingAdapter = ILendingAdapter(_lendingAdapter);
         WETH.approve(address(lendingAdapter), type(uint256).max);
         USDC.approve(address(lendingAdapter), type(uint256).max);
+    }
+
+    function setBoundaries(
+        uint160 initialSQRTPrice,
+        int24 _tickUpper,
+        int24 _tickLower
+    ) external onlyHookDeployer {
+        tickUpper = _tickUpper;
+        tickLower = _tickLower;
+        sqrtPriceCurrent = initialSQRTPrice;
     }
 
     function getHookPermissions()

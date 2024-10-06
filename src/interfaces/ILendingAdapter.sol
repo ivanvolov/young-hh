@@ -34,5 +34,5 @@ interface ILendingAdapter {
 
     function setDepositUSDCmId(Id) external;
 
-    function setAuthorizedV4Pool(address) external;
+    function addAuthorizedCaller(address) external;
 }

@@ -20,11 +20,13 @@ import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {TestAccount, TestAccountLib} from "@test/libraries/TestAccountLib.t.sol";
 import {MorphoBalancesLib} from "@forks/morpho/libraries/MorphoBalancesLib.sol";
 import {ILendingAdapter} from "@src/interfaces/ILendingAdapter.sol";
+import {SRebalanceAdapter} from "@src/core/SRebalanceAdapter.sol";
 
 abstract contract ALMTestBase is Test, Deployers {
     using TestAccountLib for TestAccount;
 
     IALM hook;
+    SRebalanceAdapter rebalanceAdapter;
 
     TestERC20 USDC;
     TestERC20 WETH;
