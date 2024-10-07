@@ -17,6 +17,8 @@ interface IALM {
         uint256 created;
     }
 
+    function hookDeployer() external view returns (address);
+
     function sqrtPriceCurrent() external view returns (uint160);
 
     function getALMInfo(uint256 almId) external view returns (ALMInfo memory);

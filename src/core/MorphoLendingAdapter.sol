@@ -11,18 +11,19 @@ import {IERC20Minimal as IERC20} from "v4-core/interfaces/external/IERC20Minimal
 import {ILendingAdapter} from "@src/interfaces/ILendingAdapter.sol";
 
 contract MorphoLendingAdapter is Ownable, ILendingAdapter {
-    Id public depositUSDCmId;
-    Id public borrowUSDCmId;
-
     IMorpho public constant morpho =
         IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
 
-    IERC20 WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    IERC20 USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    IERC20 constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+
+    Id public depositUSDCmId;
+    Id public borrowUSDCmId;
 
     mapping(address => bool) public authorizedCallers;
 
     constructor() Ownable(msg.sender) {
+        //TODO: move this into Proxy initializer
         WETH.approve(address(morpho), type(uint256).max);
         USDC.approve(address(morpho), type(uint256).max);
     }

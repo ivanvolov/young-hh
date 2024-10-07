@@ -11,7 +11,7 @@ import {ALMBaseLib} from "@src/libraries/ALMBaseLib.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {IChainlinkOracle} from "@forks/morpho-oracles/IChainlinkOracle.sol";
 import {IMorpho, MarketParams, Position as MorphoPosition, Id} from "@forks/morpho/IMorpho.sol";
-import {IALM} from "@src/interfaces/IALM.sol";
+import {ALM} from "@src/ALM.sol";
 import {PoolSwapTest} from "v4-core/test/PoolSwapTest.sol";
 import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
 
@@ -25,7 +25,7 @@ import {SRebalanceAdapter} from "@src/core/SRebalanceAdapter.sol";
 abstract contract ALMTestBase is Test, Deployers {
     using TestAccountLib for TestAccount;
 
-    IALM hook;
+    ALM hook;
     SRebalanceAdapter rebalanceAdapter;
 
     TestERC20 USDC;
@@ -35,6 +35,8 @@ abstract contract ALMTestBase is Test, Deployers {
 
     TestAccount marketCreator;
     TestAccount morphoLpProvider;
+
+    TestAccount deployer;
     TestAccount alice;
     TestAccount swapper;
 
@@ -43,19 +45,20 @@ abstract contract ALMTestBase is Test, Deployers {
     IMorpho morpho = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
     uint256 almId;
 
-    function labelTokens() public {
+    function create_accounts_and_tokens() public {
         WETH = TestERC20(ALMBaseLib.WETH);
         vm.label(address(WETH), "WETH");
         USDC = TestERC20(ALMBaseLib.USDC);
         vm.label(address(USDC), "USDC");
+
         marketCreator = TestAccountLib.createTestAccount("marketCreator");
         morphoLpProvider = TestAccountLib.createTestAccount("morphoLpProvider");
-    }
-
-    function create_and_approve_accounts() public {
+        deployer = TestAccountLib.createTestAccount("deployer");
         alice = TestAccountLib.createTestAccount("alice");
         swapper = TestAccountLib.createTestAccount("swapper");
+    }
 
+    function approve_accounts() public {
         vm.startPrank(alice.addr);
         USDC.approve(address(hook), type(uint256).max);
         WETH.approve(address(hook), type(uint256).max);

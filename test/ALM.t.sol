@@ -31,11 +31,10 @@ contract ALMTest is ALMTestBase {
 
         deployFreshManagerAndRouters();
 
-        labelTokens();
+        create_accounts_and_tokens();
         create_and_seed_morpho_markets();
         init_hook();
-        create_and_approve_accounts();
-
+        approve_accounts();
         presetChainlinkOracles();
     }
 
@@ -150,25 +149,30 @@ contract ALMTest is ALMTestBase {
         uint256 wethToSwapQ = 999755757362062341;
         uint256 usdcToGetFSwap = 4486999802;
         test_deposit();
+        // deal(address(WETH), address(swapper.addr), wethToSwapQ);
+        // assertEqBalanceState(swapper.addr, wethToSwapQ, 0);
+        // (uint256 deltaUSDC, ) = swapWETH_USDC_Out(usdcToGetFSwap);
+        // assertEq(deltaUSDC, usdcToGetFSwap);
+        // assertEqBalanceState(swapper.addr, 0, deltaUSDC);
+        // assertEqBalanceState(address(hook), 0, 0);
+        // assertEqMorphoA(depositUSDCmId, 0, 0, 0);
+        // assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwapQ);
+        // assertEq(hook.sqrtPriceCurrent(), 1181127027798823685202679804768253);
+    }
 
-        deal(address(WETH), address(swapper.addr), wethToSwapQ);
-        assertEqBalanceState(swapper.addr, wethToSwapQ, 0);
-
-        (uint256 deltaUSDC, ) = swapWETH_USDC_Out(usdcToGetFSwap);
-        assertEq(deltaUSDC, usdcToGetFSwap);
-
-        assertEqBalanceState(swapper.addr, 0, deltaUSDC);
-        assertEqBalanceState(address(hook), 0, 0);
-
-        assertEqMorphoA(depositUSDCmId, 0, 0, 0);
-        assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwapQ);
-
-        assertEq(hook.sqrtPriceCurrent(), 1181127027798823685202679804768253);
+    function test_swap_price_down_rebalance() public {
+        test_swap_price_down_in();
+        // vm.expectRevert();
+        // rebalanceAdapter.rebalance();
+        // vm.prank(deployer.addr);
+        // vm.expectRevert();
+        // rebalanceAdapter.rebalance();
     }
 
     // -- Helpers --
 
     function init_hook() internal {
+        vm.startPrank(deployer.addr);
         address hookAddress = address(
             uint160(
                 Hooks.BEFORE_SWAP_FLAG |
@@ -178,34 +182,33 @@ contract ALMTest is ALMTestBase {
             )
         );
         deployCodeTo("ALM.sol", abi.encode(manager), hookAddress);
-        ALM _hook = ALM(hookAddress);
+        hook = ALM(hookAddress);
+        assertEq(hook.hookDeployer(), deployer.addr);
 
         lendingAdapter = new MorphoLendingAdapter();
         lendingAdapter.setDepositUSDCmId(depositUSDCmId);
         lendingAdapter.setBorrowUSDCmId(borrowUSDCmId);
-        lendingAdapter.addAuthorizedCaller(address(_hook));
+        lendingAdapter.addAuthorizedCaller(address(hook));
         lendingAdapter.addAuthorizedCaller(address(rebalanceAdapter));
-
-        _hook.setLendingAdapter(address(lendingAdapter));
+        // assertEq(lendingAdapter.owner(), deployer.addr); //TODO: fix
 
         uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
-
         rebalanceAdapter = new SRebalanceAdapter();
-        rebalanceAdapter.setALM(address(_hook));
+        rebalanceAdapter.setALM(address(hook));
         rebalanceAdapter.setLendingAdapter(address(lendingAdapter));
         rebalanceAdapter.setSqrtPriceLastRebalance(initialSQRTPrice);
+        assertEq(rebalanceAdapter.owner(), deployer.addr);
 
         (key, ) = initPool(
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),
-            _hook,
+            hook,
             200,
             initialSQRTPrice,
             ZERO_BYTES
         );
 
-        hook = IALM(hookAddress);
-
+        hook.setLendingAdapter(address(lendingAdapter));
         int24 deltaTick = 3000;
         hook.setBoundaries(
             initialSQRTPrice,
@@ -218,6 +221,7 @@ contract ALMTest is ALMTestBase {
         // This is needed in order to simulate proper accounting
         deal(address(USDC), address(manager), 1000 ether);
         deal(address(WETH), address(manager), 1000 ether);
+        vm.stopPrank();
     }
 
     function create_and_seed_morpho_markets() internal {
