@@ -16,6 +16,7 @@ import {ALM} from "@src/ALM.sol";
 import {ALMBaseLib} from "@src/libraries/ALMBaseLib.sol";
 import {MorphoLendingAdapter} from "@src/core/MorphoLendingAdapter.sol";
 import {SRebalanceAdapter} from "@src/core/SRebalanceAdapter.sol";
+import {ILendingAdapter} from "@src/interfaces/ILendingAdapter.sol";
 
 contract ALMTest is ALMTestBase {
     using PoolIdLibrary for PoolId;
@@ -198,6 +199,43 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(address(hook), 0, 0);
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, 0, 98346862507690808087);
+    }
+
+    function test_lending_adapter_migration() public {
+        test_swap_price_down_rebalance();
+        // This is better to do after rebalance
+
+        vm.startPrank(deployer.addr);
+        ILendingAdapter newAdapter = new MorphoLendingAdapter();
+        newAdapter.setDepositUSDCmId(depositUSDCmId);
+        newAdapter.setBorrowUSDCmId(borrowUSDCmId);
+        newAdapter.addAuthorizedCaller(address(hook));
+        newAdapter.addAuthorizedCaller(address(rebalanceAdapter));
+        newAdapter.addAuthorizedCaller(alice.addr);
+
+        rebalanceAdapter.setLendingAdapter(address(newAdapter));
+        hook.setLendingAdapter(address(newAdapter));
+
+        lendingAdapter.addAuthorizedCaller(address(alice.addr));
+        vm.stopPrank();
+
+        uint256 collateral = lendingAdapter.getCollateral();
+        vm.startPrank(alice.addr);
+        lendingAdapter.removeCollateral(collateral);
+
+        WETH.approve(address(newAdapter), type(uint256).max);
+        newAdapter.addCollateral(collateral);
+        vm.stopPrank();
+
+        assertEqBalanceState(address(hook), 0, 0);
+        assertEqMorphoA(depositUSDCmId, address(newAdapter), 0, 0, 0);
+        assertEqMorphoA(
+            borrowUSDCmId,
+            address(newAdapter),
+            0,
+            0,
+            98346862507690808087
+        );
     }
 
     // -- Helpers --
