@@ -42,9 +42,7 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     uint256 public almIdCounter = 0;
     mapping(uint256 => ALMInfo) almInfo;
 
-    function getALMInfo(
-        uint256 almId
-    ) external view override returns (ALMInfo memory) {
+    function getALMInfo(uint256 almId) external view returns (ALMInfo memory) {
         return almInfo[almId];
     }
 

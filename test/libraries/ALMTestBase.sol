@@ -45,6 +45,8 @@ abstract contract ALMTestBase is Test, Deployers {
     IMorpho morpho = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
     uint256 almId;
 
+    uint160 initialSQRTPrice;
+
     function create_accounts_and_tokens() public {
         WETH = TestERC20(ALMBaseLib.WETH);
         vm.label(address(WETH), "WETH");

@@ -13,7 +13,6 @@ import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "v4-core/types/Currency.sol";
 import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface.sol";
 import {ALM} from "@src/ALM.sol";
-import {IALM} from "@src/interfaces/IALM.sol";
 import {ALMBaseLib} from "@src/libraries/ALMBaseLib.sol";
 import {MorphoLendingAdapter} from "@src/core/MorphoLendingAdapter.sol";
 import {SRebalanceAdapter} from "@src/core/SRebalanceAdapter.sol";
@@ -149,24 +148,56 @@ contract ALMTest is ALMTestBase {
         uint256 wethToSwapQ = 999755757362062341;
         uint256 usdcToGetFSwap = 4486999802;
         test_deposit();
-        // deal(address(WETH), address(swapper.addr), wethToSwapQ);
-        // assertEqBalanceState(swapper.addr, wethToSwapQ, 0);
-        // (uint256 deltaUSDC, ) = swapWETH_USDC_Out(usdcToGetFSwap);
-        // assertEq(deltaUSDC, usdcToGetFSwap);
-        // assertEqBalanceState(swapper.addr, 0, deltaUSDC);
-        // assertEqBalanceState(address(hook), 0, 0);
-        // assertEqMorphoA(depositUSDCmId, 0, 0, 0);
-        // assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwapQ);
-        // assertEq(hook.sqrtPriceCurrent(), 1181127027798823685202679804768253);
+
+        deal(address(WETH), address(swapper.addr), wethToSwapQ);
+        assertEqBalanceState(swapper.addr, wethToSwapQ, 0);
+
+        (uint256 deltaUSDC, ) = swapWETH_USDC_Out(usdcToGetFSwap);
+        assertEq(deltaUSDC, usdcToGetFSwap);
+
+        assertEqBalanceState(swapper.addr, 0, deltaUSDC);
+        assertEqBalanceState(address(hook), 0, 0);
+
+        assertEqMorphoA(depositUSDCmId, 0, 0, 0);
+        assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwapQ);
+
+        assertEq(hook.sqrtPriceCurrent(), 1181127027798823685202679804768253);
     }
 
     function test_swap_price_down_rebalance() public {
         test_swap_price_down_in();
-        // vm.expectRevert();
-        // rebalanceAdapter.rebalance();
-        // vm.prank(deployer.addr);
-        // vm.expectRevert();
-        // rebalanceAdapter.rebalance();
+
+        vm.expectRevert();
+        rebalanceAdapter.rebalance();
+
+        vm.prank(deployer.addr);
+        vm.expectRevert(SRebalanceAdapter.NoRebalanceNeeded.selector);
+        rebalanceAdapter.rebalance();
+
+        // Swap some more
+        uint256 wethToSwap = 10 * 1e18;
+        deal(address(WETH), address(swapper.addr), wethToSwap);
+        swapWETH_USDC_In(wethToSwap);
+
+        assertEq(hook.sqrtPriceCurrent(), 1200887897365824561728675883518358);
+
+        assertEqBalanceState(address(hook), 0, 0);
+        assertEqMorphoA(depositUSDCmId, 0, 0, 0);
+        assertEqMorphoA(borrowUSDCmId, 0, 48556613234, 110999999999999999712);
+
+        assertEq(rebalanceAdapter.sqrtPriceLastRebalance(), initialSQRTPrice);
+
+        vm.prank(deployer.addr);
+        rebalanceAdapter.rebalance();
+
+        assertEq(
+            rebalanceAdapter.sqrtPriceLastRebalance(),
+            1200887897365824561728675883518358
+        );
+
+        assertEqBalanceState(address(hook), 0, 0);
+        assertEqMorphoA(depositUSDCmId, 0, 0, 0);
+        assertEqMorphoA(borrowUSDCmId, 0, 0, 98346862507690808087);
     }
 
     // -- Helpers --
@@ -185,19 +216,19 @@ contract ALMTest is ALMTestBase {
         hook = ALM(hookAddress);
         assertEq(hook.hookDeployer(), deployer.addr);
 
+        rebalanceAdapter = new SRebalanceAdapter();
         lendingAdapter = new MorphoLendingAdapter();
+
         lendingAdapter.setDepositUSDCmId(depositUSDCmId);
         lendingAdapter.setBorrowUSDCmId(borrowUSDCmId);
         lendingAdapter.addAuthorizedCaller(address(hook));
         lendingAdapter.addAuthorizedCaller(address(rebalanceAdapter));
-        // assertEq(lendingAdapter.owner(), deployer.addr); //TODO: fix
 
-        uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
-        rebalanceAdapter = new SRebalanceAdapter();
+        initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
         rebalanceAdapter.setALM(address(hook));
         rebalanceAdapter.setLendingAdapter(address(lendingAdapter));
         rebalanceAdapter.setSqrtPriceLastRebalance(initialSQRTPrice);
-        assertEq(rebalanceAdapter.owner(), deployer.addr);
+        rebalanceAdapter.setTickDeltaThreshold(300);
 
         (key, ) = initPool(
             Currency.wrap(address(USDC)),

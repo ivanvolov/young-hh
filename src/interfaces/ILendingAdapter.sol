@@ -9,7 +9,7 @@ interface ILendingAdapter {
 
     function borrow(uint256 amountUSDC) external;
 
-    function replay(uint256 amount) external;
+    function repay(uint256 amount) external;
 
     function getCollateral() external view returns (uint256);
 

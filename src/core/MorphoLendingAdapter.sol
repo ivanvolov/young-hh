@@ -47,7 +47,7 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
             MorphoBalancesLib.expectedBorrowAssets(
                 morpho,
                 morpho.idToMarketParams(borrowUSDCmId),
-                msg.sender
+                address(this)
             );
     }
 
@@ -61,7 +61,7 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
         );
     }
 
-    function replay(uint256 amountUSDC) external onlyAuthorizedCaller {
+    function repay(uint256 amountUSDC) external onlyAuthorizedCaller {
         USDC.transferFrom(msg.sender, address(this), amountUSDC);
         morpho.repay(
             morpho.idToMarketParams(borrowUSDCmId),
@@ -103,7 +103,7 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
             MorphoBalancesLib.expectedSupplyAssets(
                 morpho,
                 morpho.idToMarketParams(depositUSDCmId),
-                msg.sender
+                address(this)
             );
     }
 
@@ -139,6 +139,7 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
     // Helpers
 
     modifier onlyAuthorizedCaller() {
+        console.log(msg.sender);
         require(
             authorizedCallers[msg.sender] == true,
             "Caller is not authorized V4 pool"

@@ -58,6 +58,9 @@ contract SRebalanceAdapter is Ownable {
     constructor() Ownable(msg.sender) {
         USDC.approve(lendingPool, type(uint256).max);
         WETH.approve(lendingPool, type(uint256).max);
+
+        USDC.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
+        WETH.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
     }
 
     function setALM(address _alm) external onlyOwner {
@@ -72,6 +75,8 @@ contract SRebalanceAdapter is Ownable {
 
     function setLendingAdapter(address _lendingAdapter) external onlyOwner {
         lendingAdapter = ILendingAdapter(_lendingAdapter);
+        WETH.approve(address(lendingAdapter), type(uint256).max);
+        USDC.approve(address(lendingAdapter), type(uint256).max);
     }
 
     function setTickDeltaThreshold(
@@ -103,6 +108,7 @@ contract SRebalanceAdapter is Ownable {
         // TLDR: we have two cases: have usdc; have usdc debt;
         uint256 usdcToRepay = lendingAdapter.getBorrowed();
         if (usdcToRepay > 0) {
+            console.log("> ! 1");
             // USDC debt. Borrow usdc to repay, repay. Swap ETH to USDC. Return back.
             address[] memory assets = new address[](1);
             uint256[] memory amounts = new uint256[](1);
@@ -118,6 +124,7 @@ contract SRebalanceAdapter is Ownable {
                 0
             );
         } else {
+            console.log("> ! 2");
             // USDC supplied: just swap USDC to ETH
             uint256 usdcSupplied = lendingAdapter.getSupplied();
             if (usdcSupplied > 0) {
@@ -142,7 +149,7 @@ contract SRebalanceAdapter is Ownable {
         bytes calldata
     ) external returns (bool) {
         require(msg.sender == lendingPool, "M0");
-        lendingAdapter.replay(amounts[0]);
+        lendingAdapter.repay(amounts[0]);
         lendingAdapter.removeCollateral(lendingAdapter.getCollateral());
 
         ALMBaseLib.swapExactOutput(

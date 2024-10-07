@@ -41,9 +41,6 @@ contract ALM is BaseStrategyHook, ERC721 {
         int24 tick,
         bytes calldata
     ) external override returns (bytes4) {
-        USDC.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
-        WETH.approve(ALMBaseLib.SWAP_ROUTER, type(uint256).max);
-
         return ALM.afterInitialize.selector;
     }
 
@@ -262,7 +259,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             lendingAdapter.getBorrowed(),
             amountUSDC
         );
-        if (repayAmount > 0) lendingAdapter.replay(repayAmount);
+        if (repayAmount > 0) lendingAdapter.repay(repayAmount);
         if (amountUSDC > repayAmount)
             lendingAdapter.supply(amountUSDC - repayAmount);
     }
