@@ -111,162 +111,151 @@ contract ALM is BaseStrategyHook, ERC721 {
         onlyAuthorizedPool(key)
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+        return (this.beforeSwap.selector, _beforeSwap(params, key), 0);
+    }
+
+    // @Notice: this function is mainly for removing stack too deep error
+    function _beforeSwap(
+        IPoolManager.SwapParams calldata params,
+        PoolKey calldata key
+    ) internal returns (BeforeSwapDelta) {
         lendingAdapter.syncDeposit();
         lendingAdapter.syncBorrow();
 
         if (params.zeroForOne) {
             console.log("> WETH price go up...");
             // If user is selling Token 0 and buying Token 1 (USDC => WETH)
-            // wethOut, usdcIn
             // TLDR: Here we got USDC and save it on balance. And just give our ETH back to USER.
-
-            SwapData memory swapData = getZeroForOneDeltas(
-                params.amountSpecified
-            );
+            (
+                BeforeSwapDelta beforeSwapDelta,
+                uint256 wethOut,
+                uint256 usdcIn,
+                uint160 sqrtPriceNext
+            ) = getZeroForOneDeltas(params.amountSpecified);
 
             // They will be sending Token 0 to the PM, creating a debit of Token 0 in the PM
             // We will take actual ERC20 Token 0 from the PM and keep it in the hook and create an equivalent credit for that Token 0 since it is ours!
-            key.currency0.take(
-                poolManager,
-                address(this),
-                swapData.usdcAmount,
-                false
-            );
-            repayAndSupply(swapData.usdcAmount); // Notice: repaying if needed to reduce lending interest.
+            key.currency0.take(poolManager, address(this), usdcIn, false);
+            repayAndSupply(usdcIn); // Notice: repaying if needed to reduce lending interest.
 
             // We don't have token 1 on our account yet, so we need to withdraw WETH from the Morpho.
             // We also need to create a debit so user could take it back from the PM.
-            lendingAdapter.removeCollateral(swapData.wethAmount);
-            key.currency1.settle(
-                poolManager,
-                address(this),
-                swapData.wethAmount,
-                false
-            );
+            lendingAdapter.removeCollateral(wethOut);
+            key.currency1.settle(poolManager, address(this), wethOut, false);
 
-            sqrtPriceCurrent = swapData.sqrtPriceNext;
-            return (this.beforeSwap.selector, swapData.beforeSwapDelta, 0);
+            sqrtPriceCurrent = sqrtPriceNext;
+            return beforeSwapDelta;
         } else {
             console.log("> WETH price go down...");
             // If user is selling Token 1 and buying Token 0 (WETH => USDC)
-            // wethIn, usdcOut
             // TLDR: Here we borrow USDC at Morpho and give it back.
 
-            SwapData memory swapData = getOneForZeroDeltas(
-                params.amountSpecified
-            );
+            (
+                BeforeSwapDelta beforeSwapDelta,
+                uint256 wethIn,
+                uint256 usdcOut,
+                uint160 sqrtPriceNext
+            ) = getOneForZeroDeltas(params.amountSpecified);
 
             // Put extra WETH to Morpho
-            key.currency1.take(
-                poolManager,
-                address(this),
-                swapData.wethAmount,
-                false
-            );
-            lendingAdapter.addCollateral(swapData.wethAmount);
+            key.currency1.take(poolManager, address(this), wethIn, false);
+            lendingAdapter.addCollateral(wethIn);
 
             // Ensure we have enough USDC. Redeem from reserves and borrow if needed.
-            redeemAndBorrow(swapData.usdcAmount);
-            key.currency0.settle(
-                poolManager,
-                address(this),
-                swapData.usdcAmount,
-                false
-            );
+            redeemAndBorrow(usdcOut);
+            key.currency0.settle(poolManager, address(this), usdcOut, false);
 
-            sqrtPriceCurrent = swapData.sqrtPriceNext;
-            return (this.beforeSwap.selector, swapData.beforeSwapDelta, 0);
+            sqrtPriceCurrent = sqrtPriceNext;
+            return beforeSwapDelta;
         }
-    }
-
-    // Notice: This is to avoid stuck to deep
-    struct SwapData {
-        BeforeSwapDelta beforeSwapDelta;
-        uint256 wethAmount;
-        uint256 usdcAmount;
-        uint160 sqrtPriceNext;
     }
 
     function getZeroForOneDeltas(
         int256 amountSpecified
-    ) internal view returns (SwapData memory swapData) {
+    )
+        internal
+        view
+        returns (
+            BeforeSwapDelta beforeSwapDelta,
+            uint256 wethOut,
+            uint256 usdcIn,
+            uint160 sqrtPriceNext
+        )
+    {
         if (amountSpecified > 0) {
             console.log("> amount specified positive");
-            swapData.wethAmount = uint256(amountSpecified);
+            wethOut = uint256(amountSpecified);
 
             //TODO: this sqrtPriceNext is not always correct, especially when we are doing reverse swaps. Use another method to calculate it
-            (uint256 usdcIn, , uint160 sqrtPriceNext) = ALMMathLib
-                .getSwapAmountsFromAmount1(
-                    sqrtPriceCurrent,
-                    liquidity,
-                    adjustForFeesDown(swapData.wethAmount)
-                );
-            swapData.usdcAmount = adjustForFeesUp(usdcIn);
-            swapData.sqrtPriceNext = sqrtPriceNext;
+            (usdcIn, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
+                sqrtPriceCurrent,
+                liquidity,
+                adjustForFeesDown(wethOut)
+            );
+            usdcIn = adjustForFeesUp(usdcIn);
 
-            swapData.beforeSwapDelta = toBeforeSwapDelta(
-                -int128(uint128(swapData.wethAmount)), // specified token = token1
-                int128(uint128(swapData.usdcAmount)) // unspecified token = token0
+            beforeSwapDelta = toBeforeSwapDelta(
+                -int128(uint128(wethOut)), // specified token = token1
+                int128(uint128(usdcIn)) // unspecified token = token0
             );
         } else {
             console.log("> amount specified negative");
 
-            swapData.usdcAmount = uint256(-amountSpecified);
+            usdcIn = uint256(-amountSpecified);
 
-            (, uint256 wethOut, uint160 sqrtPriceNext) = ALMMathLib
-                .getSwapAmountsFromAmount0(
-                    sqrtPriceCurrent,
-                    liquidity,
-                    adjustForFeesDown(swapData.usdcAmount)
-                );
+            (, wethOut, sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount0(
+                sqrtPriceCurrent,
+                liquidity,
+                adjustForFeesDown(usdcIn)
+            );
 
-            swapData.wethAmount = wethOut;
-            swapData.sqrtPriceNext = sqrtPriceNext;
-
-            swapData.beforeSwapDelta = toBeforeSwapDelta(
-                int128(uint128(swapData.usdcAmount)), // specified token = token0
-                -int128(uint128(swapData.wethAmount)) // unspecified token = token1
+            beforeSwapDelta = toBeforeSwapDelta(
+                int128(uint128(usdcIn)), // specified token = token0
+                -int128(uint128(wethOut)) // unspecified token = token1
             );
         }
     }
 
     function getOneForZeroDeltas(
         int256 amountSpecified
-    ) internal view returns (SwapData memory swapData) {
+    )
+        internal
+        view
+        returns (
+            BeforeSwapDelta beforeSwapDelta,
+            uint256 wethIn,
+            uint256 usdcOut,
+            uint160 sqrtPriceNext
+        )
+    {
         if (amountSpecified > 0) {
             console.log("> amount specified positive");
 
-            swapData.usdcAmount = uint256(amountSpecified);
+            usdcOut = uint256(amountSpecified);
 
-            (, uint256 wethIn, uint160 sqrtPriceNext) = ALMMathLib
-                .getSwapAmountsFromAmount0(
-                    sqrtPriceCurrent,
-                    liquidity,
-                    swapData.usdcAmount
-                );
-            swapData.wethAmount = adjustForFeesUp(wethIn);
-            swapData.sqrtPriceNext = sqrtPriceNext;
-
-            swapData.beforeSwapDelta = toBeforeSwapDelta(
-                -int128(uint128(swapData.usdcAmount)), // specified token = token0
-                int128(uint128(swapData.wethAmount)) // unspecified token = token1
+            (, wethIn, sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount0(
+                sqrtPriceCurrent,
+                liquidity,
+                usdcOut
+            );
+            wethIn = adjustForFeesUp(wethIn);
+            beforeSwapDelta = toBeforeSwapDelta(
+                -int128(uint128(usdcOut)), // specified token = token0
+                int128(uint128(wethIn)) // unspecified token = token1
             );
         } else {
             console.log("> amount specified negative");
-            swapData.wethAmount = uint256(-amountSpecified);
+            wethIn = uint256(-amountSpecified);
 
-            (uint256 usdcAmount, , uint160 sqrtPriceNext) = ALMMathLib
-                .getSwapAmountsFromAmount1(
-                    sqrtPriceCurrent,
-                    liquidity,
-                    adjustForFeesDown(swapData.wethAmount)
-                );
-            swapData.usdcAmount = usdcAmount;
-            swapData.sqrtPriceNext = sqrtPriceNext;
+            (usdcOut, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
+                sqrtPriceCurrent,
+                liquidity,
+                adjustForFeesDown(wethIn)
+            );
 
-            swapData.beforeSwapDelta = toBeforeSwapDelta(
-                int128(uint128(swapData.wethAmount)), // specified token = token1
-                -int128(uint128(swapData.usdcAmount)) // unspecified token = token0
+            beforeSwapDelta = toBeforeSwapDelta(
+                int128(uint128(wethIn)), // specified token = token1
+                -int128(uint128(usdcOut)) // unspecified token = token0
             );
         }
     }
