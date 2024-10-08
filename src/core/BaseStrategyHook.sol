@@ -26,6 +26,7 @@ import {ALMMathLib} from "@src/libraries/ALMMathLib.sol";
 
 abstract contract BaseStrategyHook is BaseHook, IALM {
     using CurrencySettler for Currency;
+    using PoolIdLibrary for PoolKey;
 
     ILendingAdapter public lendingAdapter;
     address public rebalanceAdapter;
@@ -47,23 +48,14 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     bool public shutdown = false;
     int24 public tickDelta = 3000;
 
+    bytes32 public authorizedPool;
+
     function getALMInfo(uint256 almId) external view returns (ALMInfo memory) {
         return almInfo[almId];
     }
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
         hookDeployer = msg.sender;
-    }
-
-    function updateBoundaries() public onlyRebalanceAdapter {
-        _updateBoundaries();
-    }
-
-    function _updateBoundaries() internal {
-        int24 tick = ALMMathLib.getTickFromSqrtPrice(sqrtPriceCurrent);
-        // Here it's inverted due to currencies order
-        tickUpper = tick - tickDelta;
-        tickLower = tick + tickDelta;
     }
 
     function setLendingAdapter(
@@ -92,6 +84,12 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         shutdown = _shutdown;
     }
 
+    function setAuthorizedPool(
+        PoolKey memory authorizedPoolKey
+    ) external onlyHookDeployer {
+        authorizedPool = PoolId.unwrap(authorizedPoolKey.toId());
+    }
+
     function getHookPermissions()
         public
         pure
@@ -117,6 +115,17 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
             });
     }
 
+    function updateBoundaries() public onlyRebalanceAdapter {
+        _updateBoundaries();
+    }
+
+    function _updateBoundaries() internal {
+        int24 tick = ALMMathLib.getTickFromSqrtPrice(sqrtPriceCurrent);
+        // Here it's inverted due to currencies order
+        tickUpper = tick - tickDelta;
+        tickLower = tick + tickDelta;
+    }
+
     /// @dev Only the hook deployer may call this function
     modifier onlyHookDeployer() {
         if (msg.sender != hookDeployer) revert NotHookDeployer();
@@ -138,6 +147,14 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     /// @dev Only allows execution when the contract is not shut down
     modifier notShutdown() {
         if (shutdown) revert ContractShutdown();
+        _;
+    }
+
+    /// @dev Only allows execution for the authorized pool
+    modifier onlyAuthorizedPool(PoolKey memory poolKey) {
+        if (PoolId.unwrap(poolKey.toId()) != authorizedPool) {
+            revert UnauthorizedPool();
+        }
         _;
     }
 }

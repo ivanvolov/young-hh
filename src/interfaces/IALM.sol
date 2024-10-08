@@ -12,6 +12,8 @@ interface IALM {
     error ContractPaused();
     error ContractShutdown();
 
+    error UnauthorizedPool();
+
     struct ALMInfo {
         uint256 amount;
         uint256 sqrtPrice;

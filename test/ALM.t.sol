@@ -77,7 +77,7 @@ contract ALMTest is ALMTestBase {
     function test_deposit() public {
         deal(address(WETH), address(alice.addr), amountToDep);
         vm.prank(alice.addr);
-        almId = hook.deposit(key, amountToDep, alice.addr);
+        almId = hook.deposit(amountToDep, alice.addr);
 
         assertEqBalanceStateZero(alice.addr);
         assertEqBalanceStateZero(address(hook));
@@ -280,6 +280,7 @@ contract ALMTest is ALMTestBase {
         hook.setLendingAdapter(address(lendingAdapter));
         assertEq(hook.tickLower(), 192230 + 3000);
         assertEq(hook.tickUpper(), 192230 - 3000);
+        hook.setAuthorizedPool(key);
 
         // This is needed in order to simulate proper accounting
         deal(address(USDC), address(manager), 1000 ether);
