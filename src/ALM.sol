@@ -36,11 +36,13 @@ contract ALM is BaseStrategyHook, ERC721 {
 
     function afterInitialize(
         address,
-        PoolKey calldata key,
-        uint160,
-        int24 tick,
+        PoolKey calldata,
+        uint160 sqrtPrice,
+        int24,
         bytes calldata
     ) external override returns (bytes4) {
+        sqrtPriceCurrent = sqrtPrice;
+        _updateBoundaries();
         return ALM.afterInitialize.selector;
     }
 
@@ -58,7 +60,7 @@ contract ALM is BaseStrategyHook, ERC721 {
         PoolKey calldata,
         uint256 amount,
         address to
-    ) external override returns (uint256 almId) {
+    ) external notPaused notShutdown returns (uint256 almId) {
         console.log(">> deposit");
         if (amount == 0) revert ZeroLiquidity();
 
@@ -90,6 +92,8 @@ contract ALM is BaseStrategyHook, ERC721 {
         almIdCounter++;
     }
 
+    function withdraw(uint256 almId) external notPaused {}
+
     function tokenURI(uint256) public pure override returns (string memory) {
         return "";
     }
@@ -100,7 +104,13 @@ contract ALM is BaseStrategyHook, ERC721 {
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
         bytes calldata
-    ) external override returns (bytes4, BeforeSwapDelta, uint24) {
+    )
+        external
+        override
+        notPaused
+        notShutdown
+        returns (bytes4, BeforeSwapDelta, uint24)
+    {
         lendingAdapter.syncDeposit();
         lendingAdapter.syncBorrow();
 

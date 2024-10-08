@@ -22,11 +22,13 @@ import {IALM} from "@src/interfaces/IALM.sol";
 import {MorphoBalancesLib} from "@forks/morpho/libraries/MorphoBalancesLib.sol";
 
 import {ILendingAdapter} from "@src/interfaces/ILendingAdapter.sol";
+import {ALMMathLib} from "@src/libraries/ALMMathLib.sol";
 
 abstract contract BaseStrategyHook is BaseHook, IALM {
     using CurrencySettler for Currency;
 
     ILendingAdapter public lendingAdapter;
+    address public rebalanceAdapter;
 
     IWETH WETH = IWETH(ALMBaseLib.WETH);
     IERC20 USDC = IERC20(ALMBaseLib.USDC);
@@ -36,11 +38,14 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     int24 public tickLower;
     int24 public tickUpper;
 
-    bytes internal constant ZERO_BYTES = bytes("");
     address public immutable hookDeployer;
 
     uint256 public almIdCounter = 0;
     mapping(uint256 => ALMInfo) almInfo;
+
+    bool public paused = false;
+    bool public shutdown = false;
+    int24 public tickDelta = 3000;
 
     function getALMInfo(uint256 almId) external view returns (ALMInfo memory) {
         return almInfo[almId];
@@ -48,6 +53,17 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
         hookDeployer = msg.sender;
+    }
+
+    function updateBoundaries() public onlyRebalanceAdapter {
+        _updateBoundaries();
+    }
+
+    function _updateBoundaries() internal {
+        int24 tick = ALMMathLib.getTickFromSqrtPrice(sqrtPriceCurrent);
+        // Here it's inverted due to currencies order
+        tickUpper = tick - tickDelta;
+        tickLower = tick + tickDelta;
     }
 
     function setLendingAdapter(
@@ -58,14 +74,22 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         USDC.approve(address(lendingAdapter), type(uint256).max);
     }
 
-    function setBoundaries(
-        uint160 initialSQRTPrice,
-        int24 _tickUpper,
-        int24 _tickLower
+    function setRebalanceAdapter(
+        address _rebalanceAdapter
     ) external onlyHookDeployer {
-        tickUpper = _tickUpper;
-        tickLower = _tickLower;
-        sqrtPriceCurrent = initialSQRTPrice;
+        rebalanceAdapter = _rebalanceAdapter;
+    }
+
+    function setTickDelta(int24 _tickDelta) external onlyHookDeployer {
+        tickDelta = _tickDelta;
+    }
+
+    function setPaused(bool _paused) external onlyHookDeployer {
+        paused = _paused;
+    }
+
+    function setShutdown(bool _shutdown) external onlyHookDeployer {
+        shutdown = _shutdown;
     }
 
     function getHookPermissions()
@@ -93,18 +117,27 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
             });
     }
 
-    //TODO: remove in production
-    function logBalances() internal view {
-        console.log("> hook balances");
-        if (USDC.balanceOf(address(this)) > 0)
-            console.log("USDC  ", USDC.balanceOf(address(this)));
-        if (WETH.balanceOf(address(this)) > 0)
-            console.log("WETH  ", WETH.balanceOf(address(this)));
-    }
-
     /// @dev Only the hook deployer may call this function
     modifier onlyHookDeployer() {
         if (msg.sender != hookDeployer) revert NotHookDeployer();
+        _;
+    }
+
+    /// @dev Only the rebalance adapter may call this function
+    modifier onlyRebalanceAdapter() {
+        if (msg.sender != rebalanceAdapter) revert NotRebalanceAdapter();
+        _;
+    }
+
+    /// @dev Only allows execution when the contract is not paused
+    modifier notPaused() {
+        if (paused) revert ContractPaused();
+        _;
+    }
+
+    /// @dev Only allows execution when the contract is not shut down
+    modifier notShutdown() {
+        if (shutdown) revert ContractShutdown();
         _;
     }
 }

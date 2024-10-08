@@ -7,7 +7,10 @@ import {PoolId} from "v4-core/types/PoolId.sol";
 interface IALM {
     error ZeroLiquidity();
     error NotHookDeployer();
+    error NotRebalanceAdapter();
     error AddLiquidityThroughHook();
+    error ContractPaused();
+    error ContractShutdown();
 
     struct ALMInfo {
         uint256 amount;
@@ -17,23 +20,5 @@ interface IALM {
         uint256 created;
     }
 
-    function hookDeployer() external view returns (address);
-
     function sqrtPriceCurrent() external view returns (uint160);
-
-    function getALMInfo(uint256 almId) external view returns (ALMInfo memory);
-
-    function deposit(
-        PoolKey calldata key,
-        uint256 amount,
-        address to
-    ) external returns (uint256 almId);
-
-    function setBoundaries(
-        uint160 initialSQRTPrice,
-        int24 _tickUpper,
-        int24 _tickLower
-    ) external;
-
-    function getSwapFees() external returns (uint256);
 }

@@ -119,7 +119,7 @@ abstract contract ALMTestBase is Test, Deployers {
                 takeClaims: false,
                 settleUsingBurn: false
             }),
-            ZERO_BYTES
+            ""
         );
         return (
             uint256(int256(delta.amount0())),

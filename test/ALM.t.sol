@@ -95,7 +95,7 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, 0, usdcToSwap);
 
         (, uint256 deltaWETH) = swapUSDC_WETH_In(usdcToSwap);
-        assertApproxEqAbs(deltaWETH, 997461875710891611, 1e1);
+        assertApproxEqAbs(deltaWETH, 997462731958539338, 1e1);
 
         assertEqBalanceState(swapper.addr, deltaWETH, 0);
         assertEqBalanceState(address(hook), 0, 0);
@@ -103,11 +103,11 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, usdcToSwap, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, 0, amountToDep - deltaWETH);
 
-        assertEq(hook.sqrtPriceCurrent(), 1181128917371009610520611806230478);
+        assertEq(hook.sqrtPriceCurrent(), 1181129931283302189208560775441188);
     }
 
     function test_swap_price_up_out() public {
-        uint256 usdcToSwapQ = 4480755527; // this should be get from quoter
+        uint256 usdcToSwapQ = 4480759374; // this should be get from quoter
         uint256 wethToGetFSwap = 1 ether;
         test_deposit();
 
@@ -123,7 +123,7 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, usdcToSwapQ, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, 0, amountToDep - deltaWETH);
 
-        assertEq(hook.sqrtPriceCurrent(), 1184420172695703616430662028218963);
+        assertEq(hook.sqrtPriceCurrent(), 1184419155958983279206311649470597);
     }
 
     function test_swap_price_down_in() public {
@@ -134,7 +134,7 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, wethToSwap, 0);
 
         (uint256 deltaUSDC, ) = swapWETH_USDC_In(wethToSwap);
-        assertEq(deltaUSDC, 4475611436);
+        assertEq(deltaUSDC, 4475615278);
 
         assertEqBalanceState(swapper.addr, 0, deltaUSDC);
         assertEqBalanceState(address(hook), 0, 0);
@@ -142,11 +142,11 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwap);
 
-        assertEq(hook.sqrtPriceCurrent(), 1184420172695703616430662028218963);
+        assertEq(hook.sqrtPriceCurrent(), 1184419155958983279206311649470597);
     }
 
     function test_swap_price_down_out() public {
-        uint256 wethToSwapQ = 999755757362062341;
+        uint256 wethToSwapQ = 999756616564962687;
         uint256 usdcToGetFSwap = 4486999802;
         test_deposit();
 
@@ -162,7 +162,7 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwapQ);
 
-        assertEq(hook.sqrtPriceCurrent(), 1181127027798823685202679804768253);
+        assertEq(hook.sqrtPriceCurrent(), 1181128042874516412352801494904842);
     }
 
     function test_swap_price_down_rebalance() public {
@@ -180,11 +180,11 @@ contract ALMTest is ALMTestBase {
         deal(address(WETH), address(swapper.addr), wethToSwap);
         swapWETH_USDC_In(wethToSwap);
 
-        assertEq(hook.sqrtPriceCurrent(), 1200887897365824561728675883518358);
+        assertEq(hook.sqrtPriceCurrent(), 1200876713261900852260821717286331);
 
         assertEqBalanceState(address(hook), 0, 0);
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
-        assertEqMorphoA(borrowUSDCmId, 0, 48556613234, 110999999999999999712);
+        assertEqMorphoA(borrowUSDCmId, 0, 48557065456, 110999999999999999712);
 
         assertEq(rebalanceAdapter.sqrtPriceLastRebalance(), initialSQRTPrice);
 
@@ -193,12 +193,12 @@ contract ALMTest is ALMTestBase {
 
         assertEq(
             rebalanceAdapter.sqrtPriceLastRebalance(),
-            1200887897365824561728675883518358
+            1200876713261900852260821717286331
         );
 
         assertEqBalanceState(address(hook), 0, 0);
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
-        assertEqMorphoA(borrowUSDCmId, 0, 0, 98346862507690808087);
+        assertEqMorphoA(borrowUSDCmId, 0, 0, 98346744659021088613);
     }
 
     function test_lending_adapter_migration() public {
@@ -234,7 +234,7 @@ contract ALMTest is ALMTestBase {
             address(newAdapter),
             0,
             0,
-            98346862507690808087
+            98346744659021088613
         );
     }
 
@@ -274,18 +274,12 @@ contract ALMTest is ALMTestBase {
             hook,
             200,
             initialSQRTPrice,
-            ZERO_BYTES
+            ""
         );
 
         hook.setLendingAdapter(address(lendingAdapter));
-        int24 deltaTick = 3000;
-        hook.setBoundaries(
-            initialSQRTPrice,
-            192228 - deltaTick,
-            192228 + deltaTick
-            // 191144, // 5000 usdc for eth
-            // 193376 // 4000 usdc for eth
-        );
+        assertEq(hook.tickLower(), 192230 + 3000);
+        assertEq(hook.tickUpper(), 192230 - 3000);
 
         // This is needed in order to simulate proper accounting
         deal(address(USDC), address(manager), 1000 ether);
