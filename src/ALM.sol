@@ -40,7 +40,7 @@ contract ALM is BaseStrategyHook, ERC721 {
         uint160 sqrtPrice,
         int24,
         bytes calldata
-    ) external override returns (bytes4) {
+    ) external override onlyByPoolManager returns (bytes4) {
         sqrtPriceCurrent = sqrtPrice;
         _updateBoundaries();
         return ALM.afterInitialize.selector;
@@ -97,7 +97,7 @@ contract ALM is BaseStrategyHook, ERC721 {
         return "";
     }
 
-    // ---  Swapping
+    // --- Swapping logic ---
     function beforeSwap(
         address,
         PoolKey calldata key,
@@ -109,6 +109,7 @@ contract ALM is BaseStrategyHook, ERC721 {
         notPaused
         notShutdown
         onlyAuthorizedPool(key)
+        onlyByPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         return (this.beforeSwap.selector, _beforeSwap(params, key), 0);
@@ -169,6 +170,8 @@ contract ALM is BaseStrategyHook, ERC721 {
             return beforeSwapDelta;
         }
     }
+
+    // --- Internal and view functions ---
 
     function getZeroForOneDeltas(
         int256 amountSpecified

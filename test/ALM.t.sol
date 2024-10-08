@@ -8,6 +8,7 @@ import {Hooks} from "v4-core/libraries/Hooks.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {ALMTestBase} from "@test/libraries/ALMTestBase.sol";
 import {ErrorsLib} from "@forks/morpho/libraries/ErrorsLib.sol";
+import {PoolKey} from "v4-core/types/PoolKey.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "v4-core/types/Currency.sol";
@@ -17,6 +18,9 @@ import {ALMBaseLib} from "@src/libraries/ALMBaseLib.sol";
 import {MorphoLendingAdapter} from "@src/core/MorphoLendingAdapter.sol";
 import {SRebalanceAdapter} from "@src/core/SRebalanceAdapter.sol";
 import {ILendingAdapter} from "@src/interfaces/ILendingAdapter.sol";
+import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
+import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
+import {IALM} from "@src/interfaces/IALM.sol";
 
 contract ALMTest is ALMTestBase {
     using PoolIdLibrary for PoolId;
@@ -235,6 +239,83 @@ contract ALMTest is ALMTestBase {
             0,
             0,
             98346744659021088613
+        );
+    }
+
+    function test_accessability() public {
+        vm.expectRevert(SafeCallback.NotPoolManager.selector);
+        hook.afterInitialize(address(0), key, 0, 0, "");
+
+        vm.expectRevert(IALM.AddLiquidityThroughHook.selector);
+        hook.beforeAddLiquidity(
+            address(0),
+            key,
+            IPoolManager.ModifyLiquidityParams(0, 0, 0, ""),
+            ""
+        );
+
+        PoolKey memory failedKey = key;
+        failedKey.tickSpacing = 3;
+
+        vm.expectRevert(IALM.UnauthorizedPool.selector);
+        hook.beforeAddLiquidity(
+            address(0),
+            failedKey,
+            IPoolManager.ModifyLiquidityParams(0, 0, 0, ""),
+            ""
+        );
+
+        vm.expectRevert(SafeCallback.NotPoolManager.selector);
+        hook.beforeSwap(
+            address(0),
+            key,
+            IPoolManager.SwapParams(true, 0, 0),
+            ""
+        );
+
+        vm.expectRevert(IALM.UnauthorizedPool.selector);
+        hook.beforeSwap(
+            address(0),
+            failedKey,
+            IPoolManager.SwapParams(true, 0, 0),
+            ""
+        );
+    }
+
+    function test_pause() public {
+        vm.prank(deployer.addr);
+        hook.setPaused(true);
+
+        vm.expectRevert(IALM.ContractPaused.selector);
+        hook.deposit(0, address(0));
+
+        vm.expectRevert(IALM.ContractPaused.selector);
+        hook.withdraw(0);
+
+        vm.prank(address(manager));
+        vm.expectRevert(IALM.ContractPaused.selector);
+        hook.beforeSwap(
+            address(0),
+            key,
+            IPoolManager.SwapParams(true, 0, 0),
+            ""
+        );
+    }
+
+    function test_shutdown() public {
+        vm.prank(deployer.addr);
+        hook.setShutdown(true);
+
+        vm.expectRevert(IALM.ContractShutdown.selector);
+        hook.deposit(0, address(0));
+
+        vm.prank(address(manager));
+        vm.expectRevert(IALM.ContractShutdown.selector);
+        hook.beforeSwap(
+            address(0),
+            key,
+            IPoolManager.SwapParams(true, 0, 0),
+            ""
         );
     }
 

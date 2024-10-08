@@ -126,6 +126,8 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         tickLower = tick + tickDelta;
     }
 
+    // --- Modifiers ---
+
     /// @dev Only the hook deployer may call this function
     modifier onlyHookDeployer() {
         if (msg.sender != hookDeployer) revert NotHookDeployer();
