@@ -59,39 +59,28 @@ contract ALM is BaseStrategyHook, ERC721 {
     function deposit(
         uint256 amount,
         address to
-    ) external notPaused notShutdown returns (uint256 almId) {
-        console.log(">> deposit");
+    ) external notPaused notShutdown returns (uint256) {
         if (amount == 0) revert ZeroLiquidity();
+        (uint128 deltaL, uint256 amountIn) = _calcDepositParams(amount);
 
-        liquidity = ALMMathLib.getLiquidityFromAmount1SqrtPriceX96(
-            ALMMathLib.getSqrtPriceAtTick(tickUpper),
-            sqrtPriceCurrent,
-            amount
-        );
-        (, uint256 amount1) = ALMMathLib.getAmountsFromLiquiditySqrtPriceX96(
-            sqrtPriceCurrent,
-            ALMMathLib.getSqrtPriceAtTick(tickUpper),
-            ALMMathLib.getSqrtPriceAtTick(tickLower),
-            liquidity
-        );
+        console.log(">amountIn", amountIn);
 
-        WETH.transferFrom(msg.sender, address(this), amount1);
+        WETH.transferFrom(msg.sender, address(this), amountIn);
         lendingAdapter.addCollateral(WETH.balanceOf(address(this)));
+        liquidity = liquidity + deltaL;
 
-        almId = almIdCounter;
-        almInfo[almId] = ALMInfo({
-            amount: amount,
-            sqrtPrice: sqrtPriceCurrent,
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            created: block.timestamp
-        });
+        //TODO: erc20 mint here
 
-        _mint(to, almId);
-        almIdCounter++;
+        return amountIn;
     }
 
-    function withdraw(uint256 almId) external notPaused {
+    function withdraw(
+        uint256 almId,
+        uint256 sharesOut
+    ) external notPaused returns (uint256) {
+        // TODO: deposit withdraw events
+        // Notice: two cases: have usdc; have usdc debt;
+        // uint256 amount
         //value = collateralETH - debtEth + (collateralUSDC - debtUsdc) / ethUsdcPrice
     }
 
@@ -122,8 +111,7 @@ contract ALM is BaseStrategyHook, ERC721 {
         IPoolManager.SwapParams calldata params,
         PoolKey calldata key
     ) internal returns (BeforeSwapDelta) {
-        lendingAdapter.syncDeposit();
-        lendingAdapter.syncBorrow();
+        refreshReserves();
 
         if (params.zeroForOne) {
             console.log("> WETH price go up...");
@@ -286,7 +274,32 @@ contract ALM is BaseStrategyHook, ERC721 {
             lendingAdapter.supply(amountUSDC - repayAmount);
     }
 
+    function refreshReserves() public {
+        lendingAdapter.syncBorrow();
+        lendingAdapter.syncDeposit();
+    }
+
     // ---- Math functions
+
+    function _calcTVL() public view returns (uint256) {
+        //value = collateralETH - debtEth + (collateralUSDC - debtUsdc) / ethUsdcPrice
+    }
+
+    function _calcDepositParams(
+        uint256 amount
+    ) public view returns (uint128 _liquidity, uint256 _amount) {
+        _liquidity = ALMMathLib.getLiquidityFromAmount1SqrtPriceX96(
+            ALMMathLib.getSqrtPriceAtTick(tickUpper),
+            sqrtPriceCurrent,
+            amount
+        );
+        (, _amount) = ALMMathLib.getAmountsFromLiquiditySqrtPriceX96(
+            sqrtPriceCurrent,
+            ALMMathLib.getSqrtPriceAtTick(tickUpper),
+            ALMMathLib.getSqrtPriceAtTick(tickLower),
+            _liquidity
+        );
+    }
 
     function adjustForFeesDown(
         uint256 amount

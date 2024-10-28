@@ -101,11 +101,9 @@ contract SRebalanceAdapter is Ownable {
 
     function rebalance() public onlyOwner {
         if (!isPriceRebalanceNeeded()) revert NoRebalanceNeeded();
+        alm.refreshReserves();
 
-        lendingAdapter.syncBorrow();
-        lendingAdapter.syncDeposit();
-
-        // TLDR: we have two cases: have usdc; have usdc debt;
+        // Notice: we have two cases: have usdc; have usdc debt;
         uint256 usdcToRepay = lendingAdapter.getBorrowed();
         if (usdcToRepay > 0) {
             console.log("> ! 1");

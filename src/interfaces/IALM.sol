@@ -23,4 +23,6 @@ interface IALM {
     }
 
     function sqrtPriceCurrent() external view returns (uint160);
+
+    function refreshReserves() external;
 }

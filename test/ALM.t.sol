@@ -81,7 +81,7 @@ contract ALMTest is ALMTestBase {
     function test_deposit() public {
         deal(address(WETH), address(alice.addr), amountToDep);
         vm.prank(alice.addr);
-        almId = hook.deposit(amountToDep, alice.addr);
+        hook.deposit(amountToDep, alice.addr);
 
         assertEqBalanceStateZero(alice.addr);
         assertEqBalanceStateZero(address(hook));
@@ -292,7 +292,7 @@ contract ALMTest is ALMTestBase {
         hook.deposit(0, address(0));
 
         vm.expectRevert(IALM.ContractPaused.selector);
-        hook.withdraw(0);
+        hook.withdraw(0, 0);
 
         vm.prank(address(manager));
         vm.expectRevert(IALM.ContractPaused.selector);
