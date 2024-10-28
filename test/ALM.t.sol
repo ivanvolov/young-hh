@@ -72,9 +72,9 @@ contract ALMTest is ALMTestBase {
         vm.stopPrank();
     }
 
-    function test_volatility_fees() public {
-        assertEq(hook.getSwapFees(), 1149360638297872);
-    }
+    // function test_volatility_fees() public {
+    //     assertEq(hook.getSwapFees(), 1149360638297872);
+    // }
 
     uint256 amountToDep = 100 ether;
 
@@ -99,7 +99,7 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, 0, usdcToSwap);
 
         (, uint256 deltaWETH) = swapUSDC_WETH_In(usdcToSwap);
-        assertApproxEqAbs(deltaWETH, 997462731958539338, 1e1);
+        assertApproxEqAbs(deltaWETH, 948744443889899008, 1e1);
 
         assertEqBalanceState(swapper.addr, deltaWETH, 0);
         assertEqBalanceState(address(hook), 0, 0);
@@ -107,11 +107,11 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, usdcToSwap, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, 0, amountToDep - deltaWETH);
 
-        assertEq(hook.sqrtPriceCurrent(), 1181129931283302189208560775441188);
+        assertEq(hook.sqrtPriceCurrent(), 1181210201945000124313491613764147);
     }
 
     function test_swap_price_up_out() public {
-        uint256 usdcToSwapQ = 4480759374; // this should be get from quoter
+        uint256 usdcToSwapQ = 4469867134; // this should be get from quoter
         uint256 wethToGetFSwap = 1 ether;
         test_deposit();
 
@@ -127,7 +127,7 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, usdcToSwapQ, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, 0, amountToDep - deltaWETH);
 
-        assertEq(hook.sqrtPriceCurrent(), 1184419155958983279206311649470597);
+        assertEq(hook.sqrtPriceCurrent(), 1184338667228746981679537543072454);
     }
 
     function test_swap_price_down_in() public {
@@ -138,7 +138,7 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(swapper.addr, wethToSwap, 0);
 
         (uint256 deltaUSDC, ) = swapWETH_USDC_In(wethToSwap);
-        assertEq(deltaUSDC, 4475615278);
+        assertEq(deltaUSDC, 4257016319);
 
         assertEqBalanceState(swapper.addr, 0, deltaUSDC);
         assertEqBalanceState(address(hook), 0, 0);
@@ -146,11 +146,11 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwap);
 
-        assertEq(hook.sqrtPriceCurrent(), 1184419155958983279206311649470597);
+        assertEq(hook.sqrtPriceCurrent(), 1184338667228746981679537543072454);
     }
 
     function test_swap_price_down_out() public {
-        uint256 wethToSwapQ = 999756616564962687;
+        uint256 wethToSwapQ = 1048539297596844510; // this should be get from quoter
         uint256 usdcToGetFSwap = 4486999802;
         test_deposit();
 
@@ -184,11 +184,11 @@ contract ALMTest is ALMTestBase {
         deal(address(WETH), address(swapper.addr), wethToSwap);
         swapWETH_USDC_In(wethToSwap);
 
-        assertEq(hook.sqrtPriceCurrent(), 1200876713261900852260821717286331);
+        assertEq(hook.sqrtPriceCurrent(), 1199991337229301579466306546906758);
 
         assertEqBalanceState(address(hook), 0, 0);
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
-        assertEqMorphoA(borrowUSDCmId, 0, 48557065456, 110999999999999999712);
+        assertEqMorphoA(borrowUSDCmId, 0, 46216366450, 110999999999999999712);
 
         assertEq(rebalanceAdapter.sqrtPriceLastRebalance(), initialSQRTPrice);
 
@@ -197,12 +197,12 @@ contract ALMTest is ALMTestBase {
 
         assertEq(
             rebalanceAdapter.sqrtPriceLastRebalance(),
-            1200876713261900852260821717286331
+            1199991337229301579466306546906758
         );
 
         assertEqBalanceState(address(hook), 0, 0);
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
-        assertEqMorphoA(borrowUSDCmId, 0, 0, 98346744659021088613);
+        assertEqMorphoA(borrowUSDCmId, 0, 0, 98956727267096030628);
     }
 
     function test_lending_adapter_migration() public {
@@ -215,6 +215,8 @@ contract ALMTest is ALMTestBase {
         newAdapter.setBorrowUSDCmId(borrowUSDCmId);
         newAdapter.addAuthorizedCaller(address(hook));
         newAdapter.addAuthorizedCaller(address(rebalanceAdapter));
+
+        // @Notice: Alice here acts as a migration contract the purpose of with is to transfer collateral between adapters
         newAdapter.addAuthorizedCaller(alice.addr);
 
         rebalanceAdapter.setLendingAdapter(address(newAdapter));
@@ -238,7 +240,7 @@ contract ALMTest is ALMTestBase {
             address(newAdapter),
             0,
             0,
-            98346744659021088613
+            98956727267096030628
         );
     }
 
@@ -323,6 +325,8 @@ contract ALMTest is ALMTestBase {
 
     function init_hook() internal {
         vm.startPrank(deployer.addr);
+
+        // MARK: Usual UniV4 hook deployment process
         address hookAddress = address(
             uint160(
                 Hooks.BEFORE_SWAP_FLAG |
@@ -334,6 +338,7 @@ contract ALMTest is ALMTestBase {
         deployCodeTo("ALM.sol", abi.encode(manager), hookAddress);
         hook = ALM(hookAddress);
         assertEq(hook.hookDeployer(), deployer.addr);
+        // MARK END
 
         rebalanceAdapter = new SRebalanceAdapter();
         lendingAdapter = new MorphoLendingAdapter();
@@ -343,17 +348,18 @@ contract ALMTest is ALMTestBase {
         lendingAdapter.addAuthorizedCaller(address(hook));
         lendingAdapter.addAuthorizedCaller(address(rebalanceAdapter));
 
-        initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
         rebalanceAdapter.setALM(address(hook));
         rebalanceAdapter.setLendingAdapter(address(lendingAdapter));
+        initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
         rebalanceAdapter.setSqrtPriceLastRebalance(initialSQRTPrice);
-        rebalanceAdapter.setTickDeltaThreshold(300);
+        rebalanceAdapter.setTickDeltaThreshold(250);
 
+        // MARK: Pool deployment
         (key, ) = initPool(
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),
             hook,
-            200,
+            100, // It's 2*100/100 = 2 ts. TODO: witch to set
             initialSQRTPrice,
             ""
         );
@@ -362,6 +368,7 @@ contract ALMTest is ALMTestBase {
         assertEq(hook.tickLower(), 192230 + 3000);
         assertEq(hook.tickUpper(), 192230 - 3000);
         hook.setAuthorizedPool(key);
+        // MARK END
 
         // This is needed in order to simulate proper accounting
         deal(address(USDC), address(manager), 1000 ether);

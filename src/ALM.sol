@@ -91,7 +91,9 @@ contract ALM is BaseStrategyHook, ERC721 {
         almIdCounter++;
     }
 
-    function withdraw(uint256 almId) external notPaused {}
+    function withdraw(uint256 almId) external notPaused {
+        //value = collateralETH - debtEth + (collateralUSDC - debtUsdc) / ethUsdcPrice
+    }
 
     function tokenURI(uint256) public pure override returns (string memory) {
         return "";
@@ -189,7 +191,7 @@ contract ALM is BaseStrategyHook, ERC721 {
             console.log("> amount specified positive");
             wethOut = uint256(amountSpecified);
 
-            //TODO: this sqrtPriceNext is not always correct, especially when we are doing reverse swaps. Use another method to calculate it
+            //TODO: test price against normal pull
             (usdcIn, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
                 sqrtPriceCurrent,
                 liquidity,
@@ -284,9 +286,11 @@ contract ALM is BaseStrategyHook, ERC721 {
             lendingAdapter.supply(amountUSDC - repayAmount);
     }
 
+    // ---- Math functions
+
     function adjustForFeesDown(
         uint256 amount
-    ) public view returns (uint256 amountAdjusted) {
+    ) public pure returns (uint256 amountAdjusted) {
         console.log("> amount specified", amount);
         amountAdjusted = amount - (amount * getSwapFees()) / 1e18;
         console.log("> amount adjusted ", amountAdjusted);
@@ -294,19 +298,21 @@ contract ALM is BaseStrategyHook, ERC721 {
 
     function adjustForFeesUp(
         uint256 amount
-    ) public view returns (uint256 amountAdjusted) {
+    ) public pure returns (uint256 amountAdjusted) {
         console.log("> amount specified", amount);
         amountAdjusted = amount + (amount * getSwapFees()) / 1e18;
         console.log("> amount adjusted ", amountAdjusted);
     }
 
-    function getSwapFees() public view returns (uint256) {
-        (, int256 RV7, , , ) = AggregatorV3Interface(
-            ALMBaseLib.CHAINLINK_7_DAYS_VOL
-        ).latestRoundData();
-        (, int256 RV30, , , ) = AggregatorV3Interface(
-            ALMBaseLib.CHAINLINK_30_DAYS_VOL
-        ).latestRoundData();
-        return ALMMathLib.calculateSwapFee(RV7 * 1e18, RV30 * 1e18);
+    function getSwapFees() public pure returns (uint256) {
+        // TODO: do fees properly. Now it will be similar to the test pull (0.05)
+        return 50000000000000000;
+        // (, int256 RV7, , , ) = AggregatorV3Interface(
+        //     ALMBaseLib.CHAINLINK_7_DAYS_VOL
+        // ).latestRoundData();
+        // (, int256 RV30, , , ) = AggregatorV3Interface(
+        //     ALMBaseLib.CHAINLINK_30_DAYS_VOL
+        // ).latestRoundData();
+        // return ALMMathLib.calculateSwapFee(RV7 * 1e18, RV30 * 1e18);
     }
 }

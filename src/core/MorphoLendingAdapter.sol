@@ -23,7 +23,6 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
     mapping(address => bool) public authorizedCallers;
 
     constructor() Ownable(msg.sender) {
-        //TODO: move this into Proxy initializer
         WETH.approve(address(morpho), type(uint256).max);
         USDC.approve(address(morpho), type(uint256).max);
     }

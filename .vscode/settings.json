@@ -19,9 +19,10 @@
     // "**/lib": true
   },
   "git.ignoredRepositories": [
-    "lib/forge-std",
-    "lib/v4-core",
-    "lib/v4-periphery"
+    "https://github.com/foundry-rs/forge-std",
+    "https://github.com/Uniswap/v4-periphery",
+    "/Users/ivanvolovik/p🗂️/hh🦔/young-hh-hook/lib/forge-std",
+    "/Users/ivanvolovik/p🗂️/hh🦔/young-hh-hook/lib/v4-periphery"
   ],
   "cSpell.enabled": true
 }
