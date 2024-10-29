@@ -111,6 +111,15 @@ library ALMMathLib {
         return uint256(1e30).div(price);
     }
 
+    function getWithdrawAmount(
+        uint256 shares,
+        uint256 totalSupply,
+        uint256 amount
+    ) internal pure returns (uint256) {
+        uint256 ratio = shares.div(totalSupply);
+        return amount.mul(ratio);
+    }
+
     // --- Helpers ---
 
     function getSqrtPriceAtTick(int24 tick) internal pure returns (uint160) {

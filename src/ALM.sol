@@ -22,6 +22,7 @@ import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface
 
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Position as MorphoPosition, Id, Market} from "@forks/morpho/IMorpho.sol";
+import {IRebalanceAdapter} from "@src/interfaces/IRebalanceAdapter.sol";
 
 /// @title ALM
 /// @author IVikkk
@@ -74,14 +75,47 @@ contract ALM is BaseStrategyHook, ERC20 {
         return (amountIn, shares);
     }
 
-    function withdraw(
-        uint256 almId,
-        uint256 sharesOut
-    ) external notPaused returns (uint256) {
-        // TODO: deposit withdraw events
+    // TODO: deposit withdraw events
+    function withdraw(uint256 sharesOut) external notPaused {
+        if (balanceOf(msg.sender) < sharesOut)
+            revert NotEnoughSharesToWithdraw();
+
+        uint256 usdcToRepay = lendingAdapter.getBorrowed();
         // Notice: two cases: have usdc; have usdc debt;
-        // uint256 amount
-        //value = collateralETH - debtEth + (collateralUSDC - debtUsdc) / ethUsdcPrice
+        if (usdcToRepay == 0) {
+            lendingAdapter.withdraw(
+                ALMMathLib.getWithdrawAmount(
+                    sharesOut,
+                    totalSupply(),
+                    lendingAdapter.getSupplied()
+                )
+            );
+
+            lendingAdapter.removeCollateral(
+                ALMMathLib.getWithdrawAmount(
+                    sharesOut,
+                    totalSupply(),
+                    lendingAdapter.getCollateral()
+                )
+            );
+        } else {
+            IRebalanceAdapter(rebalanceAdapter).withdraw(
+                ALMMathLib.getWithdrawAmount(
+                    sharesOut,
+                    totalSupply(),
+                    usdcToRepay
+                ),
+                ALMMathLib.getWithdrawAmount(
+                    sharesOut,
+                    totalSupply(),
+                    lendingAdapter.getCollateral()
+                )
+            );
+        }
+
+        _burn(msg.sender, sharesOut);
+        WETH.transfer(msg.sender, WETH.balanceOf(address(this)));
+        USDC.transfer(msg.sender, USDC.balanceOf(address(this)));
     }
 
     // --- Swapping logic ---

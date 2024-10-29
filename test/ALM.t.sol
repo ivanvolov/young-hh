@@ -298,7 +298,7 @@ contract ALMTest is ALMTestBase {
         hook.deposit(0, address(0));
 
         vm.expectRevert(IALM.ContractPaused.selector);
-        hook.withdraw(0, 0);
+        hook.withdraw(0);
 
         vm.prank(address(manager));
         vm.expectRevert(IALM.ContractPaused.selector);

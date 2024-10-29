@@ -11,6 +11,7 @@ interface IALM {
     error AddLiquidityThroughHook();
     error ContractPaused();
     error ContractShutdown();
+    error NotEnoughSharesToWithdraw();
 
     error UnauthorizedPool();
 
