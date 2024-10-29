@@ -79,9 +79,13 @@ contract ALMTest is ALMTestBase {
     uint256 amountToDep = 100 ether;
 
     function test_deposit() public {
+        assertEq(hook.TVL(), 0);
+
         deal(address(WETH), address(alice.addr), amountToDep);
         vm.prank(alice.addr);
-        hook.deposit(amountToDep, alice.addr);
+
+        (, uint256 shares) = hook.deposit(amountToDep, alice.addr);
+        assertApproxEqAbs(shares, amountToDep, 1e10);
 
         assertEqBalanceStateZero(alice.addr);
         assertEqBalanceStateZero(address(hook));
@@ -89,6 +93,8 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
 
         assertEq(hook.sqrtPriceCurrent(), 1182773400228691521900860642689024);
+        assertEq(hook._calcCurrentPrice(), 4486999999999999769339);
+        assertApproxEqAbs(hook.TVL(), amountToDep, 1e10);
     }
 
     function test_swap_price_up_in() public {
@@ -107,7 +113,7 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, usdcToSwap, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, 0, amountToDep - deltaWETH);
 
-        assertEq(hook.sqrtPriceCurrent(), 1181210201945000124313491613764147);
+        assertEq(hook.sqrtPriceCurrent(), 1181210201945000124313491613764168);
     }
 
     function test_swap_price_up_out() public {
@@ -166,7 +172,7 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
         assertEqMorphoA(borrowUSDCmId, 0, deltaUSDC, amountToDep + wethToSwapQ);
 
-        assertEq(hook.sqrtPriceCurrent(), 1181128042874516412352801494904842);
+        assertEq(hook.sqrtPriceCurrent(), 1181128042874516412352801494904863);
     }
 
     function test_swap_price_down_rebalance() public {

@@ -15,7 +15,7 @@ import {BeforeSwapDelta, toBeforeSwapDelta} from "v4-core/types/BeforeSwapDelta.
 import {Currency} from "v4-core/types/Currency.sol";
 import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 
-import {ERC721} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+import {ERC20} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {BaseStrategyHook} from "@src/core/BaseStrategyHook.sol";
 import {AggregatorV3Interface} from "@forks/morpho-oracles/AggregatorV3Interface.sol";
@@ -26,13 +26,13 @@ import {Position as MorphoPosition, Id, Market} from "@forks/morpho/IMorpho.sol"
 /// @title ALM
 /// @author IVikkk
 /// @custom:contact vivan.volovik@gmail.com
-contract ALM is BaseStrategyHook, ERC721 {
+contract ALM is BaseStrategyHook, ERC20 {
     using PoolIdLibrary for PoolKey;
     using CurrencySettler for Currency;
 
     constructor(
         IPoolManager manager
-    ) BaseStrategyHook(manager) ERC721("ALM", "ALM") {}
+    ) BaseStrategyHook(manager) ERC20("ALM", "hhALM") {} // TODO: change name to production
 
     function afterInitialize(
         address,
@@ -59,19 +59,19 @@ contract ALM is BaseStrategyHook, ERC721 {
     function deposit(
         uint256 amount,
         address to
-    ) external notPaused notShutdown returns (uint256) {
+    ) external notPaused notShutdown returns (uint256, uint256) {
         if (amount == 0) revert ZeroLiquidity();
-        (uint128 deltaL, uint256 amountIn) = _calcDepositParams(amount);
-
-        console.log(">amountIn", amountIn);
+        refreshReserves();
+        (uint128 deltaL, uint256 amountIn, uint256 shares) = _calcDepositParams(
+            amount
+        );
 
         WETH.transferFrom(msg.sender, address(this), amountIn);
         lendingAdapter.addCollateral(WETH.balanceOf(address(this)));
         liquidity = liquidity + deltaL;
 
-        //TODO: erc20 mint here
-
-        return amountIn;
+        _mint(to, shares);
+        return (amountIn, shares);
     }
 
     function withdraw(
@@ -82,10 +82,6 @@ contract ALM is BaseStrategyHook, ERC721 {
         // Notice: two cases: have usdc; have usdc debt;
         // uint256 amount
         //value = collateralETH - debtEth + (collateralUSDC - debtUsdc) / ethUsdcPrice
-    }
-
-    function tokenURI(uint256) public pure override returns (string memory) {
-        return "";
     }
 
     // --- Swapping logic ---
@@ -281,13 +277,30 @@ contract ALM is BaseStrategyHook, ERC721 {
 
     // ---- Math functions
 
-    function _calcTVL() public view returns (uint256) {
-        //value = collateralETH - debtEth + (collateralUSDC - debtUsdc) / ethUsdcPrice
+    function TVL() public view returns (uint256) {
+        uint256 price = _calcCurrentPrice();
+        int256 tvl = int256(lendingAdapter.getCollateral()) +
+            int256(lendingAdapter.getSupplied() / price) -
+            int256(lendingAdapter.getBorrowed() / price);
+        return uint256(tvl);
+    }
+
+    function sharePrice() public view returns (uint256) {
+        if (totalSupply() == 0) return 0;
+        return (TVL() * 1e18) / totalSupply();
+    }
+
+    function _calcCurrentPrice() public view returns (uint256) {
+        return ALMMathLib.getPriceFromSqrtPriceX96(sqrtPriceCurrent);
     }
 
     function _calcDepositParams(
         uint256 amount
-    ) public view returns (uint128 _liquidity, uint256 _amount) {
+    )
+        public
+        view
+        returns (uint128 _liquidity, uint256 _amount, uint256 shares)
+    {
         _liquidity = ALMMathLib.getLiquidityFromAmount1SqrtPriceX96(
             ALMMathLib.getSqrtPriceAtTick(tickUpper),
             sqrtPriceCurrent,
@@ -299,6 +312,9 @@ contract ALM is BaseStrategyHook, ERC721 {
             ALMMathLib.getSqrtPriceAtTick(tickLower),
             _liquidity
         );
+
+        uint256 _sharePrice = sharePrice();
+        shares = _sharePrice == 0 ? _amount : (_amount * 1e18) / _sharePrice;
     }
 
     function adjustForFeesDown(

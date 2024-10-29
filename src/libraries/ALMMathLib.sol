@@ -8,7 +8,7 @@ import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {LiquidityAmounts} from "v4-core/../test/utils/LiquidityAmounts.sol";
 
 library ALMMathLib {
-    using FixedPointMathLib for uint256;
+    using PRBMathUD60x18 for uint256;
 
     function getSwapAmountsFromAmount0(
         uint160 sqrtPriceCurrentX96,
@@ -99,6 +99,16 @@ library ALMMathLib {
 
         int256 R = (alpha * (((RV7 * 1e18) / RV30) - 1e18)) / 1e18;
         return uint256(max(minFee, min(maxFess, (F0 * (1e18 + R)) / 1e18)));
+    }
+
+    function getPriceFromSqrtPriceX96(
+        uint160 sqrtPriceX96
+    ) internal pure returns (uint256) {
+        //const = 2^192
+        uint256 price = uint256(sqrtPriceX96).pow(uint256(2e18)).mul(1e36).div(
+            6277101735386680763835789423207666416102355444464034512896
+        );
+        return uint256(1e30).div(price);
     }
 
     // --- Helpers ---
