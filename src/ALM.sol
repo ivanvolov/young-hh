@@ -58,8 +58,8 @@ contract ALM is BaseStrategyHook, ERC20 {
     }
 
     function deposit(
-        uint256 amount,
-        address to
+        address to,
+        uint256 amount
     ) external notPaused notShutdown returns (uint256, uint256) {
         if (amount == 0) revert ZeroLiquidity();
         refreshReserves();
@@ -72,25 +72,28 @@ contract ALM is BaseStrategyHook, ERC20 {
         liquidity = liquidity + deltaL;
 
         _mint(to, shares);
+
+        emit Deposit(msg.sender, amountIn, shares);
         return (amountIn, shares);
     }
 
-    // TODO: deposit withdraw events
-    function withdraw(uint256 sharesOut) external notPaused {
+    function withdraw(address to, uint256 sharesOut) external notPaused {
         if (balanceOf(msg.sender) < sharesOut)
             revert NotEnoughSharesToWithdraw();
-
         uint256 usdcToRepay = lendingAdapter.getBorrowed();
-        // Notice: two cases: have usdc; have usdc debt;
+        uint256 usdcSupplied = lendingAdapter.getSupplied();
         if (usdcToRepay == 0) {
-            lendingAdapter.withdraw(
-                ALMMathLib.getWithdrawAmount(
-                    sharesOut,
-                    totalSupply(),
-                    lendingAdapter.getSupplied()
-                )
-            );
-
+            if (usdcSupplied != 0) {
+                console.log("> have usdc");
+                // ** have usdc;
+                lendingAdapter.withdraw(
+                    ALMMathLib.getWithdrawAmount(
+                        sharesOut,
+                        totalSupply(),
+                        lendingAdapter.getSupplied()
+                    )
+                );
+            }
             lendingAdapter.removeCollateral(
                 ALMMathLib.getWithdrawAmount(
                     sharesOut,
@@ -98,7 +101,9 @@ contract ALM is BaseStrategyHook, ERC20 {
                     lendingAdapter.getCollateral()
                 )
             );
-        } else {
+        } else if (usdcToRepay != 0 && usdcSupplied == 0) {
+            console.log("> have usdc debt");
+            // ** have usdc debt;
             IRebalanceAdapter(rebalanceAdapter).withdraw(
                 ALMMathLib.getWithdrawAmount(
                     sharesOut,
@@ -111,11 +116,14 @@ contract ALM is BaseStrategyHook, ERC20 {
                     lendingAdapter.getCollateral()
                 )
             );
-        }
+        } else revert BalanceInconsistency();
 
         _burn(msg.sender, sharesOut);
-        WETH.transfer(msg.sender, WETH.balanceOf(address(this)));
-        USDC.transfer(msg.sender, USDC.balanceOf(address(this)));
+        uint256 amount0 = USDC.balanceOf(address(this));
+        uint256 amount1 = WETH.balanceOf(address(this));
+        USDC.transfer(to, amount0);
+        WETH.transfer(to, amount1);
+        emit Withdraw(to, sharesOut, amount0, amount1);
     }
 
     // --- Swapping logic ---

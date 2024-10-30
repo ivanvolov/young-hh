@@ -42,33 +42,67 @@ contract ALMTest is ALMTestBase {
         presetChainlinkOracles();
     }
 
-    function test_morpho_blue_markets() public {
+    function test_morpho_lending_adapter_supply() public {
+        // ** Enable Alice to call the adapter
+        vm.prank(deployer.addr);
+        lendingAdapter.addAuthorizedCaller(address(alice.addr));
+
         vm.startPrank(alice.addr);
+
+        // ** Approve to Morpho
+        USDC.approve(address(lendingAdapter), type(uint256).max);
+
+        // ** Supply
+        uint256 usdcToSupply = 4000 * 1e6;
+        deal(address(USDC), address(alice.addr), usdcToSupply);
+        lendingAdapter.supply(usdcToSupply);
+
+        assertEqMorphoS(depositUSDCmId, usdcToSupply * 1e6, 0, 0);
+        assertEqBalanceStateZero(alice.addr);
+
+        // ** Withdraw
+        lendingAdapter.withdraw(usdcToSupply);
+        assertEqMorphoS(borrowUSDCmId, 0, 0, 0);
+        assertEqBalanceState(alice.addr, 0, usdcToSupply);
+
+        vm.stopPrank();
+    }
+
+    function test_morpho_lending_adapter_borrow() public {
+        // ** Enable Alice to call the adapter
+        vm.prank(deployer.addr);
+        lendingAdapter.addAuthorizedCaller(address(alice.addr));
+
+        vm.startPrank(alice.addr);
+
+        // ** Approve to Morpho
+        WETH.approve(address(lendingAdapter), type(uint256).max);
+        USDC.approve(address(lendingAdapter), type(uint256).max);
 
         // ** Supply collateral
         deal(address(WETH), address(alice.addr), 1 ether);
-        morpho.supplyCollateral(
-            morpho.idToMarketParams(borrowUSDCmId),
-            1 ether,
-            alice.addr,
-            ""
-        );
+        lendingAdapter.addCollateral(1 ether);
 
-        assertEqMorphoS(borrowUSDCmId, alice.addr, 0, 0, 1 ether);
+        assertEqMorphoS(borrowUSDCmId, 0, 0, 1 ether);
         assertEqBalanceStateZero(alice.addr);
 
         // ** Borrow
         uint256 borrowUSDC = 4000 * 1e6;
-        (, uint256 shares) = morpho.borrow(
-            morpho.idToMarketParams(borrowUSDCmId),
-            borrowUSDC,
-            0,
-            alice.addr,
-            alice.addr
-        );
+        lendingAdapter.borrow(borrowUSDC);
 
-        assertEqMorphoS(borrowUSDCmId, alice.addr, 0, shares, 1 ether);
+        assertEqMorphoS(borrowUSDCmId, 0, borrowUSDC * 1e6, 1 ether);
         assertEqBalanceState(alice.addr, 0, borrowUSDC);
+
+        // ** Repay
+        lendingAdapter.repay(borrowUSDC);
+        assertEqMorphoS(borrowUSDCmId, 0, 0, 1 ether);
+        assertEqBalanceStateZero(alice.addr);
+
+        // ** Withdraw collateral
+        lendingAdapter.removeCollateral(1 ether);
+        assertEqMorphoS(borrowUSDCmId, 0, 0, 0);
+        assertEqBalanceState(alice.addr, 1 ether, 0);
+
         vm.stopPrank();
     }
 
@@ -84,7 +118,7 @@ contract ALMTest is ALMTestBase {
         deal(address(WETH), address(alice.addr), amountToDep);
         vm.prank(alice.addr);
 
-        (, uint256 shares) = hook.deposit(amountToDep, alice.addr);
+        (, uint256 shares) = hook.deposit(alice.addr, amountToDep);
         assertApproxEqAbs(shares, amountToDep, 1e10);
 
         assertEqBalanceStateZero(alice.addr);
@@ -211,6 +245,20 @@ contract ALMTest is ALMTestBase {
         assertEqMorphoA(borrowUSDCmId, 0, 0, 98956727267096030628);
     }
 
+    function test_swap_price_down_rebalance_withdraw() public {
+        test_swap_price_down_rebalance();
+
+        uint256 shares = hook.balanceOf(alice.addr);
+        assertEqBalanceStateZero(alice.addr);
+        assertApproxEqAbs(shares, 100 ether, 1e10);
+
+        vm.prank(alice.addr);
+        hook.withdraw(alice.addr, shares / 2);
+
+        assertApproxEqAbs(hook.balanceOf(alice.addr), shares / 2, 1e10);
+        assertEqBalanceState(alice.addr, 49478363633548016058, 0);
+    }
+
     function test_lending_adapter_migration() public {
         test_swap_price_down_rebalance();
         // This is better to do after rebalance
@@ -295,10 +343,10 @@ contract ALMTest is ALMTestBase {
         hook.setPaused(true);
 
         vm.expectRevert(IALM.ContractPaused.selector);
-        hook.deposit(0, address(0));
+        hook.deposit(address(0), 0);
 
         vm.expectRevert(IALM.ContractPaused.selector);
-        hook.withdraw(0);
+        hook.withdraw(deployer.addr, 0);
 
         vm.prank(address(manager));
         vm.expectRevert(IALM.ContractPaused.selector);
@@ -315,7 +363,7 @@ contract ALMTest is ALMTestBase {
         hook.setShutdown(true);
 
         vm.expectRevert(IALM.ContractShutdown.selector);
-        hook.deposit(0, address(0));
+        hook.deposit(deployer.addr, 0);
 
         vm.prank(address(manager));
         vm.expectRevert(IALM.ContractShutdown.selector);
@@ -365,7 +413,7 @@ contract ALMTest is ALMTestBase {
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),
             hook,
-            100, // It's 2*100/100 = 2 ts. TODO: witch to set
+            100, // It's 2*100/100 = 2 ts. TODO: witch to set in production?
             initialSQRTPrice,
             ""
         );

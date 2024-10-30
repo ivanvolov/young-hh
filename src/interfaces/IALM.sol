@@ -12,6 +12,7 @@ interface IALM {
     error ContractPaused();
     error ContractShutdown();
     error NotEnoughSharesToWithdraw();
+    error BalanceInconsistency();
 
     error UnauthorizedPool();
 
@@ -22,6 +23,15 @@ interface IALM {
         int24 tickUpper;
         uint256 created;
     }
+
+    event Deposit(address indexed to, uint256 amount, uint256 shares);
+
+    event Withdraw(
+        address indexed to,
+        uint256 shares,
+        uint256 amount0,
+        uint256 amount1
+    );
 
     function sqrtPriceCurrent() external view returns (uint160);
 
