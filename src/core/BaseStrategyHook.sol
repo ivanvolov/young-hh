@@ -61,6 +61,10 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
     function setLendingAdapter(
         address _lendingAdapter
     ) external onlyHookDeployer {
+        if (address(lendingAdapter) != address(0)) {
+            WETH.approve(address(lendingAdapter), 0);
+            USDC.approve(address(lendingAdapter), 0);
+        }
         lendingAdapter = ILendingAdapter(_lendingAdapter);
         WETH.approve(address(lendingAdapter), type(uint256).max);
         USDC.approve(address(lendingAdapter), type(uint256).max);

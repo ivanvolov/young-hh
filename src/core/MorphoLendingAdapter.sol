@@ -138,7 +138,6 @@ contract MorphoLendingAdapter is Ownable, ILendingAdapter {
     // Helpers
 
     modifier onlyAuthorizedCaller() {
-        console.log(msg.sender);
         require(
             authorizedCallers[msg.sender] == true,
             "Caller is not authorized V4 pool"
