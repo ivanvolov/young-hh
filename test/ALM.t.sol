@@ -259,6 +259,34 @@ contract ALMTest is ALMTestBase {
         assertEqBalanceState(alice.addr, 49478363633548016058, 0);
     }
 
+    function test_swap_price_down_withdraw() public {
+        test_swap_price_down_in();
+
+        uint256 shares = hook.balanceOf(alice.addr);
+        assertEqBalanceStateZero(alice.addr);
+        assertApproxEqAbs(shares, 100 ether, 1e10);
+
+        vm.prank(alice.addr);
+        hook.withdraw(alice.addr, shares / 10);
+
+        // assertApproxEqAbs(hook.balanceOf(alice.addr), shares / 2, 1e10);
+        // assertEqBalanceState(alice.addr, 49478363633548016058, 0);
+    }
+
+    function test_swap_price_up_withdraw() public {
+        test_swap_price_up_in();
+
+        uint256 shares = hook.balanceOf(alice.addr);
+        assertEqBalanceStateZero(alice.addr);
+        assertApproxEqAbs(shares, 100 ether, 1e10);
+
+        vm.prank(alice.addr);
+        hook.withdraw(alice.addr, shares / 2);
+
+        assertApproxEqAbs(hook.balanceOf(alice.addr), shares / 2, 1e10);
+        assertEqBalanceState(alice.addr, 49525627778055050818, 2243500000);
+    }
+
     function test_lending_adapter_migration() public {
         test_swap_price_down_rebalance();
         // This is better to do after rebalance
@@ -419,6 +447,7 @@ contract ALMTest is ALMTestBase {
         );
 
         hook.setLendingAdapter(address(lendingAdapter));
+        hook.setRebalanceAdapter(address(rebalanceAdapter));
         assertEq(hook.tickLower(), 192230 + 3000);
         assertEq(hook.tickUpper(), 192230 - 3000);
         hook.setAuthorizedPool(key);
