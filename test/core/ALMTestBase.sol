@@ -26,6 +26,7 @@ abstract contract ALMTestBase is Test, Deployers {
     using TestAccountLib for TestAccount;
 
     ALM hook;
+    uint24 constant poolFee = 100; // It's 2*100/100 = 2 ts. TODO: witch to set in production?
     SRebalanceAdapter rebalanceAdapter;
 
     TestERC20 USDC;

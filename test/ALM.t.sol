@@ -6,7 +6,7 @@ import "forge-std/console.sol";
 
 import {Hooks} from "v4-core/libraries/Hooks.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
-import {ALMTestBase} from "@test/libraries/ALMTestBase.sol";
+import {ALMTestBase} from "@test/core/ALMTestBase.sol";
 import {ErrorsLib} from "@forks/morpho/libraries/ErrorsLib.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 
@@ -441,7 +441,7 @@ contract ALMTest is ALMTestBase {
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),
             hook,
-            100, // It's 2*100/100 = 2 ts. TODO: witch to set in production?
+            poolFee,
             initialSQRTPrice,
             ""
         );
