@@ -9,6 +9,7 @@ import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {ALMTestBase} from "@test/core/ALMTestBase.sol";
 import {ErrorsLib} from "@forks/morpho/libraries/ErrorsLib.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
+import {ALMMathLib} from "@src/libraries/ALMMathLib.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "v4-core/types/Currency.sol";
@@ -51,6 +52,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
+    uint256 numberOfSwaps = 0;
 
     function test_simulation_start() public {
         console.log("Simulation started");
@@ -58,8 +60,13 @@ contract ALMSimulationTest is ALMTestBase {
         console.log(block.number);
 
         uint256 randomAmount;
-        for (uint i = 0; i < 100; i++) {
-            // Always do swaps
+
+        // ** First deposit to allow swapping
+        randomAmount = random(10);
+        deposit(randomAmount * 1e18, getRandomAddress());
+
+        for (uint i = 0; i < numberOfSwaps; i++) {
+            // **  Always do swaps
             {
                 randomAmount = random(100);
                 bool zeroForOne = (random(2) == 1);
@@ -69,12 +76,14 @@ contract ALMSimulationTest is ALMTestBase {
                 // swap(randomAmount * 1e18, zeroForOne, _in);
             }
 
+            // ** Do random deposits
             randomAmount = random(100);
             if (randomAmount <= 20) {
                 randomAmount = random(10);
                 deposit(randomAmount * 1e18, getRandomAddress());
             }
 
+            // ** Roll block after each iteration
             vm.roll(block.number + 1);
             vm.warp(block.timestamp + 12);
         }
@@ -85,29 +94,74 @@ contract ALMSimulationTest is ALMTestBase {
             // USDC => WETH
             if (_in) {
                 _swap(true, -int256(amount), key);
-                _swap(true, -int256(amount), keyControl);
+                // _swap(true, -int256(amount), keyControl);
             } else {
                 _swap(true, int256(amount), key);
-                _swap(true, int256(amount), keyControl);
+                // _swap(true, int256(amount), keyControl);
             }
         } else {
             // WETH => USDC
             if (_in) {
                 _swap(false, -int256(amount), key);
-                _swap(false, -int256(amount), keyControl);
+                // _swap(false, -int256(amount), keyControl);
             } else {
                 _swap(false, int256(amount), key);
-                _swap(false, int256(amount), keyControl);
+                // _swap(false, int256(amount), keyControl);
             }
         }
     }
 
     function deposit(uint256 amount, address actor) internal {
         console.log(">> do deposit:", actor, amount);
-        deal(address(WETH), actor, amount);
 
-        vm.prank(actor);
-        hook.deposit(actor, amount);
+        {
+            deal(address(WETH), actor, amount);
+            vm.prank(actor);
+            hook.deposit(actor, amount);
+        }
+
+        // {
+        //     uint128 _liquidity = ALMMathLib.getLiquidityFromAmount1SqrtPriceX96(
+        //         ALMMathLib.getSqrtPriceAtTick(hook.tickUpper()),
+        //         hook.sqrtPriceCurrent(),
+        //         amount
+        //     );
+        //     (uint256 amount0, uint256 amount1) = ALMMathLib
+        //         .getAmountsFromLiquiditySqrtPriceX96(
+        //             hook.sqrtPriceCurrent(),
+        //             ALMMathLib.getSqrtPriceAtTick(hook.tickUpper()),
+        //             ALMMathLib.getSqrtPriceAtTick(hook.tickLower()),
+        //             _liquidity
+        //         );
+
+        //     console.log("> amount0", amount0);
+        //     console.log("> amount1", amount1);
+        //     deal(address(USDC), actor, amount0 + 100);
+        //     deal(address(WETH), actor, amount1 + 100);
+
+        //     console.log(
+        //         "> modifyLiquidityRouter",
+        //         address(modifyLiquidityRouter)
+        //     );
+
+        //     console.log(address(this));
+        //     console.log(address(manager));
+        //     console.log(address(USDC));
+
+        //     // deployMintAndApprove2Currencies();
+
+        //     // vm.prank(actor);
+        //     modifyLiquidityRouter.modifyLiquidity(
+        //         keyControl,
+        //         IPoolManager.ModifyLiquidityParams({
+        //             tickLower: hook.tickUpper(),
+        //             tickUpper: hook.tickLower(),
+        //             liquidityDelta: int256(uint256(_liquidity)),
+        //             salt: bytes32(0)
+        //         }),
+        //         ""
+        //     );
+        // }
 
         // vm.prank(actor);
         // WETH.transfer(deployer.addr, WETH.balanceOf(actor));
@@ -123,13 +177,20 @@ contract ALMSimulationTest is ALMTestBase {
         if (_random > lastGeneratedAddress) {
             lastGeneratedAddress = lastGeneratedAddress + 1;
             address newActor = generateAddress(lastGeneratedAddress + offset);
-            vm.prank(newActor);
+
+            vm.startPrank(newActor);
             WETH.approve(address(hook), type(uint256).max);
+            WETH.approve(address(hook), type(uint256).max);
+
+            WETH.approve(address(hookControl), type(uint256).max);
+            USDC.approve(address(hookControl), type(uint256).max);
+            vm.stopPrank();
+
             return newActor;
         } else return generateAddress(_random + offset);
     }
 
-    function generateAddress(uint256 seed) public view returns (address) {
+    function generateAddress(uint256 seed) public pure returns (address) {
         return address(uint160(uint256(keccak256(abi.encodePacked(seed)))));
     }
 
@@ -156,6 +217,7 @@ contract ALMSimulationTest is ALMTestBase {
         );
         deployCodeTo("ALM.sol", abi.encode(manager), hookAddress);
         hook = ALM(hookAddress);
+        vm.label(address(hook), "hook");
         assertEq(hook.hookDeployer(), deployer.addr);
         // MARK END
 
@@ -203,6 +265,7 @@ contract ALMSimulationTest is ALMTestBase {
         address hookAddress = address(uint160(Hooks.AFTER_INITIALIZE_FLAG));
         deployCodeTo("ALMControl.sol", abi.encode(manager), hookAddress);
         hookControl = ALMControl(hookAddress);
+        vm.label(address(hookControl), "hookControl");
 
         // ** Pool deployment
         (keyControl, ) = initPool(
