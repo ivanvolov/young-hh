@@ -52,7 +52,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 numberOfSwaps = 0;
+    uint256 numberOfSwaps = 10;
 
     function test_simulation_start() public {
         console.log("Simulation started");
@@ -62,18 +62,20 @@ contract ALMSimulationTest is ALMTestBase {
         uint256 randomAmount;
 
         // ** First deposit to allow swapping
-        randomAmount = random(10);
-        deposit(randomAmount * 1e18, getRandomAddress());
+        approve_actor(alice.addr);
+        deposit(1000 ether, alice.addr);
+
+        // swap(2 ether, true, true);
 
         for (uint i = 0; i < numberOfSwaps; i++) {
             // **  Always do swaps
             {
-                randomAmount = random(100);
+                randomAmount = random(10);
                 bool zeroForOne = (random(2) == 1);
                 bool _in = (random(2) == 1);
 
                 // Perform the swap with the random amount and flags
-                // swap(randomAmount * 1e18, zeroForOne, _in);
+                swap(randomAmount * 1e18, zeroForOne, _in);
             }
 
             // ** Do random deposits
@@ -90,6 +92,11 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     function swap(uint256 amount, bool zeroForOne, bool _in) internal {
+        //TODO: maybe make here all in out cases sometimes
+        if (zeroForOne == true && _in == true) _in = false;
+        if (zeroForOne == false && _in == false) _in = true;
+
+        console.log(">> do swap", amount, zeroForOne, _in);
         if (zeroForOne) {
             // USDC => WETH
             if (_in) {
@@ -177,17 +184,19 @@ contract ALMSimulationTest is ALMTestBase {
         if (_random > lastGeneratedAddress) {
             lastGeneratedAddress = lastGeneratedAddress + 1;
             address newActor = generateAddress(lastGeneratedAddress + offset);
-
-            vm.startPrank(newActor);
-            WETH.approve(address(hook), type(uint256).max);
-            WETH.approve(address(hook), type(uint256).max);
-
-            WETH.approve(address(hookControl), type(uint256).max);
-            USDC.approve(address(hookControl), type(uint256).max);
-            vm.stopPrank();
-
+            approve_actor(newActor);
             return newActor;
         } else return generateAddress(_random + offset);
+    }
+
+    function approve_actor(address actor) internal {
+        vm.startPrank(actor);
+        WETH.approve(address(hook), type(uint256).max);
+        WETH.approve(address(hook), type(uint256).max);
+
+        WETH.approve(address(hookControl), type(uint256).max);
+        USDC.approve(address(hookControl), type(uint256).max);
+        vm.stopPrank();
     }
 
     function generateAddress(uint256 seed) public pure returns (address) {

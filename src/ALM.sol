@@ -348,15 +348,12 @@ contract ALM is BaseStrategyHook, ERC20 {
             sqrtPriceCurrent,
             amount
         );
-        uint256 _amount0;
-        (_amount0, _amount) = ALMMathLib.getAmountsFromLiquiditySqrtPriceX96(
+        (, _amount) = ALMMathLib.getAmountsFromLiquiditySqrtPriceX96(
             sqrtPriceCurrent,
             ALMMathLib.getSqrtPriceAtTick(tickUpper),
             ALMMathLib.getSqrtPriceAtTick(tickLower),
             _liquidity
         );
-        console.log("> amount0", _amount0);
-        console.log("> amount1", _amount);
 
         uint256 _sharePrice = sharePrice();
         shares = _sharePrice == 0 ? _amount : (_amount * 1e18) / _sharePrice;
@@ -365,17 +362,17 @@ contract ALM is BaseStrategyHook, ERC20 {
     function adjustForFeesDown(
         uint256 amount
     ) public pure returns (uint256 amountAdjusted) {
-        console.log("> amount specified", amount);
+        // console.log("> amount specified", amount);
         amountAdjusted = amount - (amount * getSwapFees()) / 1e18;
-        console.log("> amount adjusted ", amountAdjusted);
+        // console.log("> amount adjusted ", amountAdjusted);
     }
 
     function adjustForFeesUp(
         uint256 amount
     ) public pure returns (uint256 amountAdjusted) {
-        console.log("> amount specified", amount);
+        // console.log("> amount specified", amount);
         amountAdjusted = amount + (amount * getSwapFees()) / 1e18;
-        console.log("> amount adjusted ", amountAdjusted);
+        // console.log("> amount adjusted ", amountAdjusted);
     }
 
     function getSwapFees() public pure returns (uint256) {
