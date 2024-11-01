@@ -28,6 +28,7 @@ contract ALMSimulationTest is ALMTestBase {
     using CurrencyLibrary for Currency;
 
     ALMControl hookControl;
+    PoolKey keyControl;
 
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
 
@@ -44,11 +45,102 @@ contract ALMSimulationTest is ALMTestBase {
         init_control_hook();
         approve_accounts();
         presetChainlinkOracles();
+
+        deal(address(USDC), address(swapper.addr), 100_000_000 * 1e6);
+        deal(address(WETH), address(swapper.addr), 100_000 * 1e18);
     }
 
-    function test_simulation_start() public {}
+    uint256 maxDepositors = 3;
+
+    function test_simulation_start() public {
+        console.log("Simulation started");
+        console.log(block.timestamp);
+        console.log(block.number);
+
+        uint256 randomAmount;
+        for (uint i = 0; i < 100; i++) {
+            // Always do swaps
+            {
+                randomAmount = random(100);
+                bool zeroForOne = (random(2) == 1);
+                bool _in = (random(2) == 1);
+
+                // Perform the swap with the random amount and flags
+                // swap(randomAmount * 1e18, zeroForOne, _in);
+            }
+
+            randomAmount = random(100);
+            if (randomAmount <= 20) {
+                randomAmount = random(10);
+                deposit(randomAmount * 1e18, getRandomAddress());
+            }
+
+            vm.roll(block.number + 1);
+            vm.warp(block.timestamp + 12);
+        }
+    }
+
+    function swap(uint256 amount, bool zeroForOne, bool _in) internal {
+        if (zeroForOne) {
+            // USDC => WETH
+            if (_in) {
+                _swap(true, -int256(amount), key);
+                _swap(true, -int256(amount), keyControl);
+            } else {
+                _swap(true, int256(amount), key);
+                _swap(true, int256(amount), keyControl);
+            }
+        } else {
+            // WETH => USDC
+            if (_in) {
+                _swap(false, -int256(amount), key);
+                _swap(false, -int256(amount), keyControl);
+            } else {
+                _swap(false, int256(amount), key);
+                _swap(false, int256(amount), keyControl);
+            }
+        }
+    }
+
+    function deposit(uint256 amount, address actor) internal {
+        console.log(">> do deposit:", actor, amount);
+        deal(address(WETH), actor, amount);
+
+        vm.prank(actor);
+        hook.deposit(actor, amount);
+
+        // vm.prank(actor);
+        // WETH.transfer(deployer.addr, WETH.balanceOf(actor));
+    }
 
     // -- Helpers --
+
+    uint256 lastGeneratedAddress = 0;
+
+    function getRandomAddress() public returns (address) {
+        uint256 offset = 100;
+        uint256 _random = random(maxDepositors);
+        if (_random > lastGeneratedAddress) {
+            lastGeneratedAddress = lastGeneratedAddress + 1;
+            address newActor = generateAddress(lastGeneratedAddress + offset);
+            vm.prank(newActor);
+            WETH.approve(address(hook), type(uint256).max);
+            return newActor;
+        } else return generateAddress(_random + offset);
+    }
+
+    function generateAddress(uint256 seed) public view returns (address) {
+        return address(uint160(uint256(keccak256(abi.encodePacked(seed)))));
+    }
+
+    function random(uint256 randomCap) public view returns (uint) {
+        uint randomHash = uint(
+            keccak256(
+                abi.encodePacked(block.timestamp, block.prevrandao, msg.sender)
+            )
+        );
+        return (randomHash % randomCap) + 1;
+    }
 
     function init_hook() internal {
         vm.startPrank(deployer.addr);
@@ -113,7 +205,7 @@ contract ALMSimulationTest is ALMTestBase {
         hookControl = ALMControl(hookAddress);
 
         // ** Pool deployment
-        (key, ) = initPool(
+        (keyControl, ) = initPool(
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),
             hookControl,

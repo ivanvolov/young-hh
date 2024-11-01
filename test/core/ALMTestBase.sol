@@ -14,6 +14,7 @@ import {IMorpho, MarketParams, Position as MorphoPosition, Id} from "@forks/morp
 import {ALM} from "@src/ALM.sol";
 import {PoolSwapTest} from "v4-core/test/PoolSwapTest.sol";
 import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
+import {PoolKey} from "v4-core/types/PoolKey.sol";
 
 import {TestERC20} from "v4-core/test/TestERC20.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
@@ -81,34 +82,35 @@ abstract contract ALMTestBase is Test, Deployers {
     function swapWETH_USDC_Out(
         uint256 amount
     ) public returns (uint256, uint256) {
-        return swap(false, int256(amount));
+        return _swap(false, int256(amount), key);
     }
 
     function swapWETH_USDC_In(
         uint256 amount
     ) public returns (uint256, uint256) {
-        return swap(false, -int256(amount));
+        return _swap(false, -int256(amount), key);
     }
 
     function swapUSDC_WETH_Out(
         uint256 amount
     ) public returns (uint256, uint256) {
-        return swap(true, int256(amount));
+        return _swap(true, int256(amount), key);
     }
 
     function swapUSDC_WETH_In(
         uint256 amount
     ) public returns (uint256, uint256) {
-        return swap(true, -int256(amount));
+        return _swap(true, -int256(amount), key);
     }
 
-    function swap(
+    function _swap(
         bool zeroForOne,
-        int256 amount
+        int256 amount,
+        PoolKey memory _key
     ) internal returns (uint256, uint256) {
         vm.prank(swapper.addr);
         BalanceDelta delta = swapRouter.swap(
-            key,
+            _key,
             IPoolManager.SwapParams(
                 zeroForOne,
                 amount,
