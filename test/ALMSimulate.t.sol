@@ -85,10 +85,39 @@ contract ALMSimulationTest is ALMTestBase {
                 deposit(randomAmount * 1e18, getRandomAddress());
             }
 
+            save_pool_state();
+
             // ** Roll block after each iteration
             vm.roll(block.number + 1);
             vm.warp(block.timestamp + 12);
         }
+    }
+
+    function save_pool_state() internal {
+        uint128 liquidity = hook.liquidity();
+        uint160 sqrtPriceX96 = hook.sqrtPriceCurrent();
+        int24 tickLower = hook.tickLower();
+        int24 tickUpper = hook.tickUpper();
+        uint256 borrowed = lendingAdapter.getBorrowed();
+        uint256 supplied = lendingAdapter.getSupplied();
+        uint256 collateral = lendingAdapter.getCollateral();
+
+        bytes memory packedData = abi.encodePacked(
+            liquidity,
+            sqrtPriceX96,
+            tickLower,
+            tickUpper,
+            borrowed,
+            supplied,
+            collateral
+        );
+        string memory packedHexString = toHexString(packedData);
+
+        string[] memory inputs = new string[](3);
+        inputs[0] = "node";
+        inputs[1] = "test/snapshots/logState.js";
+        inputs[2] = packedHexString;
+        vm.ffi(inputs);
     }
 
     function swap(uint256 amount, bool zeroForOne, bool _in) internal {
