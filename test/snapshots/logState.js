@@ -32,14 +32,16 @@ function decodeSwapData(buffer) {
     const borrowed = BigNumber.from(buffer.slice(42, 74)).toString(); // uint256 (32 bytes)
     const supplied = BigNumber.from(buffer.slice(74, 106)).toString(); // uint256 (32 bytes)
     const collateral = BigNumber.from(buffer.slice(106, 138)).toString(); // uint256 (32 bytes)
+    const blockNumber = BigNumber.from(buffer.slice(138, 170)).toString(); // uint256 (32 bytes)
 
-    return { liquidity, sqrtPriceX96, tickLower, tickUpper, borrowed, supplied, collateral };
+
+    return { liquidity, sqrtPriceX96, tickLower, tickUpper, borrowed, supplied, collateral, blockNumber };
 }
 
 const packedBuffer = hexToBuffer(packedHexString);
 // console.log(decodeSwapData(packedBuffer));
-const { liquidity, sqrtPriceX96, tickLower, tickUpper, borrowed, supplied, collateral } = decodeSwapData(packedBuffer);
+const { liquidity, sqrtPriceX96, tickLower, tickUpper, borrowed, supplied, collateral, blockNumber } = decodeSwapData(packedBuffer);
 
-const csvData = `${liquidity},${sqrtPriceX96},${tickLower},${tickUpper},${borrowed},${supplied},${collateral}\n`;
+const csvData = `${liquidity},${sqrtPriceX96},${tickLower},${tickUpper},${borrowed},${supplied},${collateral},${blockNumber}\n`;
 fs.appendFileSync(csvFilePath, csvData, "utf8");
 console.log(`Swap data written to ${csvFilePath}`);

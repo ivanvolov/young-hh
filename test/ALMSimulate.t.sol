@@ -54,7 +54,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 numberOfSwaps = 1;
+    uint256 numberOfSwaps = 10;
 
     function test_simulation_start() public {
         console.log("Simulation started");
@@ -109,7 +109,8 @@ contract ALMSimulationTest is ALMTestBase {
             tickUpper,
             borrowed,
             supplied,
-            collateral
+            collateral,
+            block.number
         );
         string memory packedHexString = toHexString(packedData);
 
