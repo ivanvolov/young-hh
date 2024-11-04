@@ -34,6 +34,8 @@ contract ALMSimulationTest is ALMTestBase {
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
 
     function setUp() public {
+        clear_snapshots();
+
         uint256 mainnetFork = vm.createFork(MAINNET_RPC_URL);
         vm.selectFork(mainnetFork);
         vm.rollFork(19_955_703);
@@ -52,7 +54,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 numberOfSwaps = 10;
+    uint256 numberOfSwaps = 1;
 
     function test_simulation_start() public {
         console.log("Simulation started");
@@ -64,8 +66,6 @@ contract ALMSimulationTest is ALMTestBase {
         // ** First deposit to allow swapping
         approve_actor(alice.addr);
         deposit(1000 ether, alice.addr);
-
-        // swap(2 ether, true, true);
 
         for (uint i = 0; i < numberOfSwaps; i++) {
             // **  Always do swaps
@@ -116,6 +116,36 @@ contract ALMSimulationTest is ALMTestBase {
                 // _swap(false, int256(amount), keyControl);
             }
         }
+
+        save_swap_data(amount, zeroForOne, _in, block.number);
+    }
+
+    function save_swap_data(
+        uint256 amount,
+        bool zeroForOne,
+        bool _in,
+        uint256 blockNumber
+    ) internal {
+        bytes memory packedData = abi.encodePacked(
+            amount,
+            zeroForOne,
+            _in,
+            blockNumber
+        );
+        string memory packedHexString = toHexString(packedData);
+
+        string[] memory inputs = new string[](3);
+        inputs[0] = "node";
+        inputs[1] = "test/snapshots/logSwap.js";
+        inputs[2] = packedHexString;
+        vm.ffi(inputs);
+    }
+
+    function clear_snapshots() internal {
+        string[] memory inputs = new string[](2);
+        inputs[0] = "node";
+        inputs[1] = "test/snapshots/clear.js";
+        vm.ffi(inputs);
     }
 
     function deposit(uint256 amount, address actor) internal {
@@ -174,7 +204,26 @@ contract ALMSimulationTest is ALMTestBase {
         // WETH.transfer(deployer.addr, WETH.balanceOf(actor));
     }
 
-    // -- Helpers --
+    // -- Simulation helpers --
+
+    function toHexString(
+        bytes memory input
+    ) public pure returns (string memory) {
+        require(input.length < type(uint256).max / 2 - 1);
+        bytes16 symbols = "0123456789abcdef";
+        bytes memory hex_buffer = new bytes(2 * input.length + 2);
+        hex_buffer[0] = "0";
+        hex_buffer[1] = "x";
+
+        uint pos = 2;
+        uint256 length = input.length;
+        for (uint i = 0; i < length; ++i) {
+            uint _byte = uint8(input[i]);
+            hex_buffer[pos++] = symbols[_byte >> 4];
+            hex_buffer[pos++] = symbols[_byte & 0xf];
+        }
+        return string(hex_buffer);
+    }
 
     uint256 lastGeneratedAddress = 0;
 
@@ -211,6 +260,8 @@ contract ALMSimulationTest is ALMTestBase {
         );
         return (randomHash % randomCap) + 1;
     }
+
+    // -- Helpers --
 
     function init_hook() internal {
         vm.startPrank(deployer.addr);
