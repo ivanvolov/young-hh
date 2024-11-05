@@ -1,0 +1,86 @@
+---
+title: "HH Simulation charts"
+output: html_notebook
+---
+
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(plotly)
+library(gridExtra)
+```
+
+
+```{r}
+deposits <- read.csv("deposits.csv")
+
+states <- read.csv("states.csv")
+#states$Borrowed <- as.numeric(states$Borrowed) / 1e18
+#states$Supplied <- as.numeric(states$Supplied) / 1e18
+states$Collateral <- as.numeric(states$Collateral) / 1e18
+
+
+swaps <- read.csv("swaps.csv")
+swaps$Amount <- as.numeric(swaps$Amount) / 1e18
+swaps$Zero.For.One <- as.logical(swaps$Zero.For.One)
+
+# Displaying the first few rows of each data frame to confirm
+#head(deposits)
+#head(states)
+#head(swaps)
+dim(swaps)
+dim(states)
+```
+
+```{r}
+# Select the first occurrence of each Block Number in states
+states_first <- states %>%
+  group_by(Block.Number) %>%
+  slice(1) %>%
+  ungroup()
+
+
+merged_data <- left_join(swaps, states_first, by = "Block.Number")
+merged_data$Amount <- ifelse(merged_data$Zero.For.One == FALSE, -merged_data$Amount, merged_data$Amount)
+```
+
+
+```{r}
+q = 2**96
+merged_data$price <- 1e12/(merged_data$SqrtPriceX96/q)**2
+```
+
+
+```{r}
+p <- ggplot(merged_data, aes(x = Block.Number, y = Amount)) +
+  geom_line(color = "blue") +
+  geom_point(color = "red") +
+  labs(title = "Swap direction", x = "Block Number", y = "Amount") +
+  scale_x_continuous(breaks = seq(min(merged_data$Block.Number), max(merged_data$Block.Number), by = 5)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) # Rotate labels
+
+# p
+ggplotly(p) %>% layout(xaxis = list(rangeslider = list(visible = TRUE)))
+```
+```{r}
+p_price <- ggplot(merged_data, aes(x = Block.Number, y = price)) +  # Use 'price' with a lowercase "p"
+  geom_line(color = "green", size = 1) +
+  labs(title = "Price Chart", x = "Block Number", y = "Price") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# Create the trading volume bar chart
+p_volume <- ggplot(merged_data, aes(x = Block.Number, y = Amount)) +
+  geom_bar(stat = "identity", fill = "blue", alpha = 0.7) +
+  labs(title = "Trading Volume (Amount)", x = "Block Number", y = "Amount") +
+  scale_x_continuous(breaks = seq(min(merged_data$Block.Number), max(merged_data$Block.Number), by = 5)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# Combine the two plots into one
+grid.arrange(p_price, p_volume, ncol = 1, heights = c(2, 1))
+```
+
+

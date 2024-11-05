@@ -54,7 +54,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 numberOfSwaps = 10;
+    uint256 numberOfSwaps = 100;
 
     function test_simulation_start() public {
         console.log("Simulation started");
