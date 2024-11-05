@@ -67,6 +67,11 @@ contract ALMSimulationTest is ALMTestBase {
         approve_actor(alice.addr);
         deposit(1000 ether, alice.addr);
 
+        save_pool_state();
+
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 12);
+
         for (uint i = 0; i < numberOfSwaps; i++) {
             // **  Always do swaps
             {
@@ -78,14 +83,17 @@ contract ALMSimulationTest is ALMTestBase {
                 swap(randomAmount * 1e18, zeroForOne, _in);
             }
 
+            save_pool_state();
+
             // ** Do random deposits
             randomAmount = random(100);
             if (randomAmount <= 20) {
                 randomAmount = random(10);
-                deposit(randomAmount * 1e18, getRandomAddress());
+                address actor = getRandomAddress();
+                deposit(randomAmount * 1e18, actor);
+                save_deposit_data(randomAmount * 1e18, actor);
+                save_pool_state();
             }
-
-            save_pool_state();
 
             // ** Roll block after each iteration
             vm.roll(block.number + 1);
@@ -232,6 +240,21 @@ contract ALMSimulationTest is ALMTestBase {
 
         // vm.prank(actor);
         // WETH.transfer(deployer.addr, WETH.balanceOf(actor));
+    }
+
+    function save_deposit_data(uint256 amount, address actor) internal {
+        bytes memory packedData = abi.encodePacked(
+            amount,
+            address(actor),
+            block.number
+        );
+        string memory packedHexString = toHexString(packedData);
+
+        string[] memory inputs = new string[](3);
+        inputs[0] = "node";
+        inputs[1] = "test/snapshots/logDeposits.js";
+        inputs[2] = packedHexString;
+        vm.ffi(inputs);
     }
 
     // -- Simulation helpers --

@@ -3,6 +3,7 @@ const fs = require("fs");
 // File paths
 const swapsCsvFilePath = "test/snapshots/swaps.csv";
 const statesCsvFilePath = "test/snapshots/states.csv";
+const depositsCsvFilePath = "test/snapshots/deposits.csv";
 
 // Function to clear and write headers to a CSV file
 function prepareCsvFile(filePath, headerRow) {
@@ -24,5 +25,9 @@ prepareCsvFile(swapsCsvFilePath, swapsHeaderRow);
 // Prepare states.csv
 const statesHeaderRow = "Liquidity, SqrtPriceX96, TickLower, TickUpper, Borrowed, Supplied, Collateral, Block Number\n";
 prepareCsvFile(statesCsvFilePath, statesHeaderRow);
+
+// Prepare deposits.csv
+const depositsHeaderRow = "Amount, Actor, Block Number\n";
+prepareCsvFile(depositsCsvFilePath, depositsHeaderRow);
 
 console.log("All CSV files cleared and headers written.");
