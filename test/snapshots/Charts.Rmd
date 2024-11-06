@@ -51,36 +51,44 @@ q = 2**96
 merged_data$price <- 1e12/(merged_data$SqrtPriceX96/q)**2
 ```
 
-
 ```{r}
-p <- ggplot(merged_data, aes(x = Block.Number, y = Amount)) +
-  geom_line(color = "blue") +
-  geom_point(color = "red") +
-  labs(title = "Swap direction", x = "Block Number", y = "Amount") +
-  scale_x_continuous(breaks = seq(min(merged_data$Block.Number), max(merged_data$Block.Number), by = 5)) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) # Rotate labels
-
-# p
-ggplotly(p) %>% layout(xaxis = list(rangeslider = list(visible = TRUE)))
-```
-```{r}
-p_price <- ggplot(merged_data, aes(x = Block.Number, y = price)) +  # Use 'price' with a lowercase "p"
+p_price <- ggplot(merged_data, aes(x = Block.Number, y = price)) + 
   geom_line(color = "green", size = 1) +
-  labs(title = "Price Chart", x = "Block Number", y = "Price") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  labs(title = "Price Chart", y = "Price") +
+  theme_minimal()
 
 # Create the trading volume bar chart
 p_volume <- ggplot(merged_data, aes(x = Block.Number, y = Amount)) +
   geom_bar(stat = "identity", fill = "blue", alpha = 0.7) +
-  labs(title = "Trading Volume (Amount)", x = "Block Number", y = "Amount") +
-  scale_x_continuous(breaks = seq(min(merged_data$Block.Number), max(merged_data$Block.Number), by = 5)) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  labs(title = "Trading Volume (Amount)", y = "Amount") +
+  theme_minimal()
 
-# Combine the two plots into one
-grid.arrange(p_price, p_volume, ncol = 1, heights = c(2, 1))
+# Convert ggplot objects to plotly objects
+p_price_plotly <- ggplotly(p_price)
+p_volume_plotly <- ggplotly(p_volume)
+
+# Combine the two plots into one figure with specified heights and shared x-axis
+combined_plot <- subplot(
+  p_price_plotly, p_volume_plotly,
+  nrows = 2,
+  shareX = TRUE,
+  heights = c(0.7, 0.3)  # 70% height for the price chart and 30% for the volume chart
+) %>%
+  layout(
+    title = "Pool ALM",
+    xaxis = list(
+      title = "Block Number", 
+      rangeslider = list(
+        visible = TRUE, 
+        thickness = 0.02  # Adjust thickness of the range slider to reduce height
+      )
+    ),
+    yaxis = list(title = "Price"),  # Y-axis for the price chart
+    yaxis2 = list(title = "Amount")  # Y-axis for the volume chart
+  )
+
+# Show the combined plot
+combined_plot
 ```
 
 
