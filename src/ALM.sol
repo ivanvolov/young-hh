@@ -201,6 +201,7 @@ contract ALM is BaseStrategyHook, ERC20 {
 
     // --- Internal and view functions ---
 
+    //TODO: test price against normal pull
     function getZeroForOneDeltas(
         int256 amountSpecified
     )
@@ -214,30 +215,39 @@ contract ALM is BaseStrategyHook, ERC20 {
         )
     {
         if (amountSpecified > 0) {
-            console.log("> amount specified positive");
+            // console.log("> amount specified positive");
             wethOut = uint256(amountSpecified);
 
-            //TODO: test price against normal pull
-            (usdcIn, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
+            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96ZeroForOneOut(
                 sqrtPriceCurrent,
                 liquidity,
-                adjustForFeesDown(wethOut)
+                wethOut
             );
-            usdcIn = adjustForFeesUp(usdcIn);
+
+            usdcIn = ALMMathLib.getSwapAmount0(
+                sqrtPriceCurrent,
+                sqrtPriceNext,
+                liquidity
+            );
 
             beforeSwapDelta = toBeforeSwapDelta(
                 -int128(uint128(wethOut)), // specified token = token1
                 int128(uint128(usdcIn)) // unspecified token = token0
             );
         } else {
-            console.log("> amount specified negative");
-
+            // console.log("> amount specified negative");
             usdcIn = uint256(-amountSpecified);
 
-            (, wethOut, sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount0(
+            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96ZeroForOneIn(
                 sqrtPriceCurrent,
                 liquidity,
-                adjustForFeesDown(usdcIn)
+                usdcIn
+            );
+
+            wethOut = ALMMathLib.getSwapAmount1(
+                sqrtPriceCurrent,
+                sqrtPriceNext,
+                liquidity
             );
 
             beforeSwapDelta = toBeforeSwapDelta(
@@ -260,28 +270,39 @@ contract ALM is BaseStrategyHook, ERC20 {
         )
     {
         if (amountSpecified > 0) {
-            console.log("> amount specified positive");
-
+            // console.log("> amount specified positive");
             usdcOut = uint256(amountSpecified);
 
-            (, wethIn, sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount0(
+            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96OneForZeroOut(
                 sqrtPriceCurrent,
                 liquidity,
                 usdcOut
             );
-            wethIn = adjustForFeesUp(wethIn);
+
+            wethIn = ALMMathLib.getSwapAmount1(
+                sqrtPriceCurrent,
+                sqrtPriceNext,
+                liquidity
+            );
+
             beforeSwapDelta = toBeforeSwapDelta(
                 -int128(uint128(usdcOut)), // specified token = token0
                 int128(uint128(wethIn)) // unspecified token = token1
             );
         } else {
-            console.log("> amount specified negative");
+            // console.log("> amount specified negative");
             wethIn = uint256(-amountSpecified);
 
-            (usdcOut, , sqrtPriceNext) = ALMMathLib.getSwapAmountsFromAmount1(
+            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96OneForZeroIn(
                 sqrtPriceCurrent,
                 liquidity,
-                adjustForFeesDown(wethIn)
+                wethIn
+            );
+
+            usdcOut = ALMMathLib.getSwapAmount0(
+                sqrtPriceCurrent,
+                sqrtPriceNext,
+                liquidity
             );
 
             beforeSwapDelta = toBeforeSwapDelta(
@@ -359,6 +380,7 @@ contract ALM is BaseStrategyHook, ERC20 {
         shares = _sharePrice == 0 ? _amount : (_amount * 1e18) / _sharePrice;
     }
 
+    // TODO: Notice * I'm not using it now in the code at all.
     function adjustForFeesDown(
         uint256 amount
     ) public pure returns (uint256 amountAdjusted) {
@@ -367,6 +389,7 @@ contract ALM is BaseStrategyHook, ERC20 {
         // console.log("> amount adjusted ", amountAdjusted);
     }
 
+    // TODO: Notice * I'm not using it now in the code at all.
     function adjustForFeesUp(
         uint256 amount
     ) public pure returns (uint256 amountAdjusted) {
@@ -377,7 +400,8 @@ contract ALM is BaseStrategyHook, ERC20 {
 
     function getSwapFees() public pure returns (uint256) {
         // TODO: do fees properly. Now it will be similar to the test pull (0.05)
-        return 50000000000000000;
+        // return 50000000000000000;
+        return 0;
         // (, int256 RV7, , , ) = AggregatorV3Interface(
         //     ALMBaseLib.CHAINLINK_7_DAYS_VOL
         // ).latestRoundData();

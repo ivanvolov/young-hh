@@ -10,53 +10,78 @@ import {LiquidityAmounts} from "v4-core/../test/utils/LiquidityAmounts.sol";
 library ALMMathLib {
     using PRBMathUD60x18 for uint256;
 
-    function getSwapAmountsFromAmount0(
-        uint160 sqrtPriceCurrentX96,
-        uint128 liquidity,
-        uint256 amount0
-    ) internal pure returns (uint256, uint256, uint160) {
-        uint160 sqrtPriceNextX96 = toUint160(
-            uint256(liquidity).mul(uint256(sqrtPriceCurrentX96)).div(
-                uint256(liquidity) +
-                    amount0.mul(uint256(sqrtPriceCurrentX96)).div(2 ** 96)
-            )
-        );
-
-        return (
-            LiquidityAmounts.getAmount0ForLiquidity(
-                sqrtPriceNextX96,
-                sqrtPriceCurrentX96,
-                liquidity
-            ),
-            LiquidityAmounts.getAmount1ForLiquidity(
-                sqrtPriceNextX96,
-                sqrtPriceCurrentX96,
-                liquidity
-            ),
-            sqrtPriceNextX96
-        );
-    }
-
-    function getSwapAmountsFromAmount1(
+    //TODO: optimize after, not now
+    function sqrtPriceNextX96OneForZeroIn(
         uint160 sqrtPriceCurrentX96,
         uint128 liquidity,
         uint256 amount1
-    ) internal pure returns (uint256, uint256, uint160) {
+    ) internal pure returns (uint160) {
         uint160 sqrtPriceDeltaX96 = toUint160((amount1 * 2 ** 96) / liquidity);
-        uint160 sqrtPriceNextX96 = sqrtPriceCurrentX96 + sqrtPriceDeltaX96;
+        return sqrtPriceCurrentX96 + sqrtPriceDeltaX96;
+    }
 
+    function sqrtPriceNextX96ZeroForOneOut(
+        uint160 sqrtPriceCurrentX96,
+        uint128 liquidity,
+        uint256 amount1
+    ) internal pure returns (uint160) {
+        uint160 sqrtPriceDeltaX96 = toUint160((amount1 * 2 ** 96) / liquidity);
+        return sqrtPriceCurrentX96 - sqrtPriceDeltaX96;
+    }
+
+    function sqrtPriceNextX96OneForZeroOut(
+        uint160 sqrtPriceCurrentX96,
+        uint128 liquidity,
+        uint256 amount0
+    ) internal pure returns (uint160) {
+        return
+            toUint160(
+                uint256(liquidity).mul(uint256(sqrtPriceCurrentX96)).div(
+                    uint256(liquidity) +
+                        amount0.mul(uint256(sqrtPriceCurrentX96)).div(2 ** 96)
+                )
+            );
+    }
+
+    function sqrtPriceNextX96ZeroForOneIn(
+        uint160 sqrtPriceCurrentX96,
+        uint128 liquidity,
+        uint256 amount0
+    ) internal pure returns (uint160) {
+        return
+            toUint160(
+                uint256(liquidity).mul(uint256(sqrtPriceCurrentX96)).div(
+                    uint256(liquidity) -
+                        amount0.mul(uint256(sqrtPriceCurrentX96)).div(2 ** 96)
+                )
+            );
+    }
+
+    function getSwapAmount0(
+        uint160 sqrtPriceCurrentX96,
+        uint160 sqrtPriceNextX96,
+        uint128 liquidity
+    ) internal pure returns (uint256) {
         return (
             LiquidityAmounts.getAmount0ForLiquidity(
                 sqrtPriceNextX96,
                 sqrtPriceCurrentX96,
                 liquidity
-            ),
+            )
+        );
+    }
+
+    function getSwapAmount1(
+        uint160 sqrtPriceCurrentX96,
+        uint160 sqrtPriceNextX96,
+        uint128 liquidity
+    ) internal pure returns (uint256) {
+        return (
             LiquidityAmounts.getAmount1ForLiquidity(
                 sqrtPriceNextX96,
                 sqrtPriceCurrentX96,
                 liquidity
-            ),
-            sqrtPriceNextX96
+            )
         );
     }
 
