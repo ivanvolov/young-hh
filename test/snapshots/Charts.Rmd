@@ -24,10 +24,6 @@ states$Collateral <- as.numeric(states$Collateral) / 1e18
 
 
 swaps <- read.csv("swaps.csv")
-swaps <- swaps %>%
-  rename(zeroForOne = Zero.For.One)
-swaps <- swaps %>%
-  rename(blocknumber = Block.Number)
 swaps$zeroForOne <- as.logical(swaps$zeroForOne)
 swaps$In <- as.logical(swaps$In)
 swaps$Amount <- ifelse(
@@ -36,10 +32,7 @@ swaps$Amount <- ifelse(
   as.numeric(swaps$Amount) / 1e18
 )
 
-# Displaying the first few rows of each data frame to confirm
 #head(deposits)
-#head(states)
-#head(swaps)
 dim(swaps)
 dim(states)
 ```
@@ -47,13 +40,13 @@ dim(states)
 ```{r}
 # Select the first occurrence of each Block Number in states
 states_first <- states %>%
-  group_by(Block.Number) %>%
+  group_by(blockNumber) %>%
   slice(1) %>%
   ungroup()
 
 
-merged_data <- left_join(swaps, states_first, by = "Block.Number")
-merged_data$Amount <- ifelse(merged_data$Zero.For.One == FALSE, -merged_data$Amount, merged_data$Amount)
+merged_data <- left_join(swaps, states_first, by = "blockNumber")
+merged_data$Amount <- ifelse(merged_data$zeroForOne == FALSE, -merged_data$Amount, merged_data$Amount)
 ```
 
 
@@ -63,13 +56,13 @@ merged_data$price <- 1e12/(merged_data$SqrtPriceX96/q)**2
 ```
 
 ```{r}
-p_price <- ggplot(merged_data, aes(x = Block.Number, y = price)) + 
+p_price <- ggplot(merged_data, aes(x = blockNumber, y = price)) + 
   geom_line(color = "green", size = 1) +
   labs(title = "Price Chart", y = "Price") +
   theme_minimal()
 
 # Create the trading volume bar chart
-p_volume <- ggplot(merged_data, aes(x = Block.Number, y = Amount)) +
+p_volume <- ggplot(merged_data, aes(x = blockNumber, y = Amount)) +
   geom_bar(stat = "identity", fill = "blue", alpha = 0.7) +
   labs(title = "Trading Volume (Amount)", y = "Amount") +
   theme_minimal()

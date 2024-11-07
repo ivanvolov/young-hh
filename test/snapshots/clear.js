@@ -19,15 +19,15 @@ function prepareCsvFile(filePath, headerRow) {
 }
 
 // Prepare swaps.csv
-const swapsHeaderRow = "Amount,Zero-For-One,In,Block Number\n";
+const swapsHeaderRow = "Amount,zeroForOne,In,blockNumber\n";
 prepareCsvFile(swapsCsvFilePath, swapsHeaderRow);
 
 // Prepare states.csv
-const statesHeaderRow = "Liquidity, SqrtPriceX96, TickLower, TickUpper, Borrowed, Supplied, Collateral, Block Number\n";
+const statesHeaderRow = "Liquidity, SqrtPriceX96, TickLower, TickUpper, Borrowed, Supplied, Collateral, blockNumber\n";
 prepareCsvFile(statesCsvFilePath, statesHeaderRow);
 
 // Prepare deposits.csv
-const depositsHeaderRow = "Amount, Actor, Block Number\n";
+const depositsHeaderRow = "Amount, Actor, blockNumber\n";
 prepareCsvFile(depositsCsvFilePath, depositsHeaderRow);
 
 console.log("All CSV files cleared and headers written.");

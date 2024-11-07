@@ -54,7 +54,8 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 numberOfSwaps = 100;
+    uint256 numberOfSwaps = 10;
+    uint256 expectedPoolPriceForConversion = 4500;
 
     function test_simulation_start() public {
         console.log("Simulation started");
@@ -76,12 +77,15 @@ contract ALMSimulationTest is ALMTestBase {
             // **  Always do swaps
             {
                 randomAmount = random(10) * 1e18;
-                bool zeroForOne = (random(10) > 5);
-                bool _in = (random(10) > 5);
+                bool zeroForOne = (random(2) == 1);
+                bool _in = (random(2) == 1);
 
                 // Now will adjust amount if it's USDC goes In
                 if ((zeroForOne && _in) || (!zeroForOne && !_in)) {
-                    randomAmount = (randomAmount * 4500) / 1e12;
+                    console.log("> randomAmount before", randomAmount);
+                    randomAmount =
+                        (randomAmount * expectedPoolPriceForConversion) /
+                        1e12;
                 } else {
                     console.log("> randomAmount", randomAmount);
                 }
@@ -307,14 +311,14 @@ contract ALMSimulationTest is ALMTestBase {
         return address(uint160(uint256(keccak256(abi.encodePacked(seed)))));
     }
 
-    function random(uint256 randomCap) public view returns (uint) {
-        string;
+    function random(uint256 randomCap) public returns (uint) {
+        string[] memory inputs = new string[](3);
         inputs[0] = "node";
-        inputs[1] = "test/snapshots/generateRandomNumber.js";
-        inputs[2] = Strings.toString(randomCap); // Pass the range as a string
+        inputs[1] = "test/snapshots/random.js";
+        inputs[2] = toHexString(abi.encodePacked(randomCap));
 
-        string memory result = vm.ffi(inputs);
-        uint256 randomNumber = parseInt(result, 10); // Convert string result to uint
+        bytes memory result = vm.ffi(inputs);
+        return abi.decode(result, (uint256));
     }
 
     // -- Helpers --
