@@ -75,12 +75,18 @@ contract ALMSimulationTest is ALMTestBase {
         for (uint i = 0; i < numberOfSwaps; i++) {
             // **  Always do swaps
             {
-                randomAmount = random(10);
-                bool zeroForOne = (random(2) == 1);
-                bool _in = (random(2) == 1);
+                randomAmount = random(10) * 1e18;
+                bool zeroForOne = (random(10) > 5);
+                bool _in = (random(10) > 5);
 
-                // Perform the swap with the random amount and flags
-                swap(randomAmount * 1e18, zeroForOne, _in);
+                // Now will adjust amount if it's USDC goes In
+                if ((zeroForOne && _in) || (!zeroForOne && !_in)) {
+                    randomAmount = (randomAmount * 4500) / 1e12;
+                } else {
+                    console.log("> randomAmount", randomAmount);
+                }
+
+                swap(randomAmount, zeroForOne, _in);
             }
 
             save_pool_state();
@@ -130,10 +136,6 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     function swap(uint256 amount, bool zeroForOne, bool _in) internal {
-        //TODO: maybe make here all in out cases sometimes
-        if (zeroForOne == true && _in == true) _in = false;
-        if (zeroForOne == false && _in == false) _in = true;
-
         console.log(">> do swap", amount, zeroForOne, _in);
         if (zeroForOne) {
             // USDC => WETH
@@ -306,12 +308,13 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     function random(uint256 randomCap) public view returns (uint) {
-        uint randomHash = uint(
-            keccak256(
-                abi.encodePacked(block.timestamp, block.prevrandao, msg.sender)
-            )
-        );
-        return (randomHash % randomCap) + 1;
+        string;
+        inputs[0] = "node";
+        inputs[1] = "test/snapshots/generateRandomNumber.js";
+        inputs[2] = Strings.toString(randomCap); // Pass the range as a string
+
+        string memory result = vm.ffi(inputs);
+        uint256 randomNumber = parseInt(result, 10); // Convert string result to uint
     }
 
     // -- Helpers --

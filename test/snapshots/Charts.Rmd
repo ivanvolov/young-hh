@@ -9,10 +9,12 @@ library(ggplot2)
 library(tidyverse)
 library(plotly)
 library(gridExtra)
+library(dplyr)
 ```
 
 
 ```{r}
+rm(list = ls())
 deposits <- read.csv("deposits.csv")
 
 states <- read.csv("states.csv")
@@ -22,8 +24,17 @@ states$Collateral <- as.numeric(states$Collateral) / 1e18
 
 
 swaps <- read.csv("swaps.csv")
-swaps$Amount <- as.numeric(swaps$Amount) / 1e18
-swaps$Zero.For.One <- as.logical(swaps$Zero.For.One)
+swaps <- swaps %>%
+  rename(zeroForOne = Zero.For.One)
+swaps <- swaps %>%
+  rename(blocknumber = Block.Number)
+swaps$zeroForOne <- as.logical(swaps$zeroForOne)
+swaps$In <- as.logical(swaps$In)
+swaps$Amount <- ifelse(
+  (swaps$zeroForOne & swaps$In) | (!swaps$zeroForOne & !swaps$In),
+  as.numeric(swaps$Amount) / 1e6,
+  as.numeric(swaps$Amount) / 1e18
+)
 
 # Displaying the first few rows of each data frame to confirm
 #head(deposits)
