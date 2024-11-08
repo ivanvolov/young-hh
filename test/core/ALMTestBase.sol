@@ -130,6 +130,53 @@ abstract contract ALMTestBase is Test, Deployers {
         );
     }
 
+    function __swap(
+        bool zeroForOne,
+        int256 amount,
+        PoolKey memory _key
+    ) internal returns (int256, int256) {
+        console.log("> __swap");
+        uint256 wethBefore = WETH.balanceOf(swapper.addr);
+        uint256 usdcBefore = USDC.balanceOf(swapper.addr);
+
+        vm.prank(swapper.addr);
+        BalanceDelta delta = swapRouter.swap(
+            _key,
+            IPoolManager.SwapParams(
+                zeroForOne,
+                amount,
+                zeroForOne == true
+                    ? TickMath.MIN_SQRT_PRICE + 1
+                    : TickMath.MAX_SQRT_PRICE - 1
+            ),
+            PoolSwapTest.TestSettings({
+                takeClaims: false,
+                settleUsingBurn: false
+            }),
+            ""
+        );
+        if (zeroForOne) {
+            assertEq(
+                usdcBefore - USDC.balanceOf(swapper.addr),
+                uint256(int256(-delta.amount0()))
+            );
+            assertEq(
+                WETH.balanceOf(swapper.addr) - wethBefore,
+                uint256(int256(delta.amount1()))
+            );
+        } else {
+            assertEq(
+                USDC.balanceOf(swapper.addr) - usdcBefore,
+                uint256(int256(delta.amount0()))
+            );
+            assertEq(
+                wethBefore - WETH.balanceOf(swapper.addr),
+                uint256(int256(-delta.amount1()))
+            );
+        }
+        return (int256(delta.amount0()), int256(delta.amount1()));
+    }
+
     // -- Morpho -- //
 
     function create_morpho_market(

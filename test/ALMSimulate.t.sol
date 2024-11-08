@@ -54,7 +54,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 numberOfSwaps = 2;
+    uint256 numberOfSwaps = 1;
     uint256 expectedPoolPriceForConversion = 4500;
 
     function test_simulation_start() public {
@@ -143,40 +143,61 @@ contract ALMSimulationTest is ALMTestBase {
 
     function swap(uint256 amount, bool zeroForOne, bool _in) internal {
         console.log(">> do swap", amount, zeroForOne, _in);
+        int256 delta0;
+        int256 delta1;
+        int256 delta0c;
+        int256 delta1c;
         if (zeroForOne) {
             // USDC => WETH
             if (_in) {
-                _swap(true, -int256(amount), key);
-                // _swap(true, -int256(amount), keyControl);
+                (delta0, delta1) = __swap(true, -int256(amount), key);
+                (delta0c, delta1c) = __swap(true, -int256(amount), keyControl);
             } else {
-                _swap(true, int256(amount), key);
-                // _swap(true, int256(amount), keyControl);
+                (delta0, delta1) = __swap(true, int256(amount), key);
+                (delta0c, delta1c) = __swap(true, int256(amount), keyControl);
             }
         } else {
             // WETH => USDC
             if (_in) {
-                _swap(false, -int256(amount), key);
-                // _swap(false, -int256(amount), keyControl);
+                (delta0, delta1) = __swap(false, -int256(amount), key);
+                (delta0c, delta1c) = __swap(false, -int256(amount), keyControl);
             } else {
-                _swap(false, int256(amount), key);
-                // _swap(false, int256(amount), keyControl);
+                (delta0, delta1) = __swap(false, int256(amount), key);
+                (delta0c, delta1c) = __swap(false, int256(amount), keyControl);
             }
         }
 
-        save_swap_data(amount, zeroForOne, _in, block.number);
+        save_swap_data(
+            amount,
+            zeroForOne,
+            _in,
+            block.number,
+            delta0,
+            delta1,
+            delta0c,
+            delta1c
+        );
     }
 
     function save_swap_data(
         uint256 amount,
         bool zeroForOne,
         bool _in,
-        uint256 blockNumber
+        uint256 blockNumber,
+        int256 delta0,
+        int256 delta1,
+        int256 delta0c,
+        int256 delta1c
     ) internal {
         bytes memory packedData = abi.encodePacked(
             amount,
             zeroForOne,
             _in,
-            blockNumber
+            blockNumber,
+            delta0,
+            delta1,
+            delta0c,
+            delta1c
         );
         string memory packedHexString = toHexString(packedData);
 

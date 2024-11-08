@@ -19,7 +19,7 @@ function prepareCsvFile(filePath, headerRow) {
 }
 
 // Prepare swaps.csv
-const swapsHeaderRow = "Amount,zeroForOne,In,blockNumber\n";
+const swapsHeaderRow = "Amount,zeroForOne,In,blockNumber,delta0,delta1,delta0c,delta1c\n";
 prepareCsvFile(swapsCsvFilePath, swapsHeaderRow);
 
 // Prepare states.csv
