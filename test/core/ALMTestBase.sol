@@ -41,13 +41,12 @@ abstract contract ALMTestBase is Test, Deployers {
     TestAccount deployer;
     TestAccount alice;
     TestAccount swapper;
+    TestAccount zero;
 
     Id depositUSDCmId;
     Id borrowUSDCmId;
     IMorpho morpho = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
     uint256 almId;
-
-    uint160 initialSQRTPrice;
 
     function create_accounts_and_tokens() public {
         WETH = TestERC20(ALMBaseLib.WETH);
@@ -60,6 +59,7 @@ abstract contract ALMTestBase is Test, Deployers {
         deployer = TestAccountLib.createTestAccount("deployer");
         alice = TestAccountLib.createTestAccount("alice");
         swapper = TestAccountLib.createTestAccount("swapper");
+        zero = TestAccountLib.createTestAccount("zero");
     }
 
     function approve_accounts() public {

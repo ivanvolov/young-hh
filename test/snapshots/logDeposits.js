@@ -15,14 +15,17 @@ function decodeDepositData(buffer) {
     const amount = BigNumber.from(buffer.slice(0, 32)).toString();
     const actor = '0x' + buffer.slice(32, 52).toString('hex'); // Address is 20 bytes
     const blockNumber = BigNumber.from(buffer.slice(52, 84)).toString(); // Read block number from the right slice
-    return { amount, actor, blockNumber };
+    const tokeWeth = BigNumber.from(buffer.slice(84, 84+32)).toString(); // uint256 (32 bytes)
+    const tokeWethControl = BigNumber.from(buffer.slice(84+32, 84+32*2)).toString(); // uint256 (32 bytes)
+    const tokeUsdcControl = BigNumber.from(buffer.slice(84+32*2, 84+32*3)).toString(); // uint256 (32 bytes)
+    return { amount, actor, blockNumber, tokeWeth, tokeWethControl, tokeUsdcControl };
 }
 
 // Decode the hex string
 const packedBuffer = hexToBuffer(packedHexString);
-const { amount, actor, blockNumber } = decodeDepositData(packedBuffer);
+const { amount, actor, blockNumber, tokeWeth, tokeWethControl, tokeUsdcControl } = decodeDepositData(packedBuffer);
 
 // Append deposit data to CSV file
-const csvData = `${amount},${actor},${blockNumber}\n`;
+const csvData = `${amount},${tokeWeth},${tokeWethControl},${tokeUsdcControl},${actor},${blockNumber}\n`;
 fs.appendFileSync(csvFilePath, csvData, "utf8");
 console.log(`Deposit data written to ${csvFilePath}`);

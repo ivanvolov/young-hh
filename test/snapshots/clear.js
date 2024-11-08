@@ -27,7 +27,7 @@ const statesHeaderRow = "Liquidity, SqrtPriceX96, TickLower, TickUpper, Borrowed
 prepareCsvFile(statesCsvFilePath, statesHeaderRow);
 
 // Prepare deposits.csv
-const depositsHeaderRow = "Amount, Actor, blockNumber\n";
+const depositsHeaderRow = "Amount, tWETH, tWETHc, tUSDCc, Actor, blockNumber\n";
 prepareCsvFile(depositsCsvFilePath, depositsHeaderRow);
 
 console.log("All CSV files cleared and headers written.");

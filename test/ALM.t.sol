@@ -405,6 +405,8 @@ contract ALMTest is ALMTestBase {
 
     // -- Helpers --
 
+    uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
+
     function init_hook() internal {
         vm.startPrank(deployer.addr);
 
@@ -432,7 +434,6 @@ contract ALMTest is ALMTestBase {
 
         rebalanceAdapter.setALM(address(hook));
         rebalanceAdapter.setLendingAdapter(address(lendingAdapter));
-        initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
         rebalanceAdapter.setSqrtPriceLastRebalance(initialSQRTPrice);
         rebalanceAdapter.setTickDeltaThreshold(250);
 
