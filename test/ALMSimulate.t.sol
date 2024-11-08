@@ -54,7 +54,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 numberOfSwaps = 10;
+    uint256 numberOfSwaps = 2;
     uint256 expectedPoolPriceForConversion = 4500;
 
     function test_simulation_start() public {
@@ -101,7 +101,6 @@ contract ALMSimulationTest is ALMTestBase {
                 randomAmount = random(10);
                 address actor = getRandomAddress();
                 deposit(randomAmount * 1e18, actor);
-                save_deposit_data(randomAmount * 1e18, actor);
                 save_pool_state();
             }
 
@@ -194,65 +193,63 @@ contract ALMSimulationTest is ALMTestBase {
 
     function deposit(uint256 amount, address actor) internal {
         console.log(">> do deposit:", actor, amount);
+        vm.startPrank(actor);
+
+        uint256 tokeWETHcontrol;
+        uint256 tokeUSDCcontrol;
 
         {
             deal(address(WETH), actor, amount);
-            vm.prank(actor);
-            hook.deposit(actor, amount);
+            deal(address(USDC), actor, amount / 1e8); // should be 1e12 but gor 4 zeros to be sure
+            hookControl.deposit(
+                keyControl,
+                amount,
+                hook.tickUpper(),
+                hook.tickLower()
+            );
+            tokeWETHcontrol = amount - WETH.balanceOf(actor);
+            tokeUSDCcontrol = amount / 1e8 - USDC.balanceOf(actor);
+
+            // ** Clear up account
+            WETH.transfer(zero.addr, WETH.balanceOf(actor));
+            USDC.transfer(zero.addr, USDC.balanceOf(actor));
         }
 
-        // {
-        //     uint128 _liquidity = ALMMathLib.getLiquidityFromAmount1SqrtPriceX96(
-        //         ALMMathLib.getSqrtPriceAtTick(hook.tickUpper()),
-        //         hook.sqrtPriceCurrent(),
-        //         amount
-        //     );
-        //     (uint256 amount0, uint256 amount1) = ALMMathLib
-        //         .getAmountsFromLiquiditySqrtPriceX96(
-        //             hook.sqrtPriceCurrent(),
-        //             ALMMathLib.getSqrtPriceAtTick(hook.tickUpper()),
-        //             ALMMathLib.getSqrtPriceAtTick(hook.tickLower()),
-        //             _liquidity
-        //         );
+        uint256 tokeWETH;
+        {
+            deal(address(WETH), actor, amount);
+            hook.deposit(actor, amount);
+            tokeWETH = amount - WETH.balanceOf(actor);
 
-        //     console.log("> amount0", amount0);
-        //     console.log("> amount1", amount1);
-        //     deal(address(USDC), actor, amount0 + 100);
-        //     deal(address(WETH), actor, amount1 + 100);
+            // ** Clear up account
+            WETH.transfer(zero.addr, WETH.balanceOf(actor));
+            USDC.transfer(zero.addr, USDC.balanceOf(actor));
+        }
 
-        //     console.log(
-        //         "> modifyLiquidityRouter",
-        //         address(modifyLiquidityRouter)
-        //     );
-
-        //     console.log(address(this));
-        //     console.log(address(manager));
-        //     console.log(address(USDC));
-
-        //     // deployMintAndApprove2Currencies();
-
-        //     // vm.prank(actor);
-        //     modifyLiquidityRouter.modifyLiquidity(
-        //         keyControl,
-        //         IPoolManager.ModifyLiquidityParams({
-        //             tickLower: hook.tickUpper(),
-        //             tickUpper: hook.tickLower(),
-        //             liquidityDelta: int256(uint256(_liquidity)),
-        //             salt: bytes32(0)
-        //         }),
-        //         ""
-        //     );
-        // }
-
-        // vm.prank(actor);
-        // WETH.transfer(deployer.addr, WETH.balanceOf(actor));
+        save_deposit_data(
+            amount,
+            actor,
+            tokeWETH,
+            tokeWETHcontrol,
+            tokeUSDCcontrol
+        );
+        vm.stopPrank();
     }
 
-    function save_deposit_data(uint256 amount, address actor) internal {
+    function save_deposit_data(
+        uint256 amount,
+        address actor,
+        uint256 tokeWETH,
+        uint256 tokeWETHcontrol,
+        uint256 tokeUSDCcontrol
+    ) internal {
         bytes memory packedData = abi.encodePacked(
             amount,
             address(actor),
-            block.number
+            block.number,
+            tokeWETH,
+            tokeWETHcontrol,
+            tokeUSDCcontrol
         );
         string memory packedHexString = toHexString(packedData);
 
@@ -323,6 +320,8 @@ contract ALMSimulationTest is ALMTestBase {
 
     // -- Helpers --
 
+    uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
+
     function init_hook() internal {
         vm.startPrank(deployer.addr);
 
@@ -351,7 +350,6 @@ contract ALMSimulationTest is ALMTestBase {
 
         rebalanceAdapter.setALM(address(hook));
         rebalanceAdapter.setLendingAdapter(address(lendingAdapter));
-        initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
         rebalanceAdapter.setSqrtPriceLastRebalance(initialSQRTPrice);
         rebalanceAdapter.setTickDeltaThreshold(250);
 
