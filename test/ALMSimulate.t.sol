@@ -119,6 +119,8 @@ contract ALMSimulationTest is ALMTestBase {
         uint256 supplied = lendingAdapter.getSupplied();
         uint256 collateral = lendingAdapter.getCollateral();
 
+        (uint160 sqrtPriceX96Control, ) = hookControl.getTick(keyControl);
+
         bytes memory packedData = abi.encodePacked(
             liquidity,
             sqrtPriceX96,
@@ -127,7 +129,8 @@ contract ALMSimulationTest is ALMTestBase {
             borrowed,
             supplied,
             collateral,
-            block.number
+            block.number,
+            sqrtPriceX96Control
         );
         string memory packedHexString = toHexString(packedData);
 

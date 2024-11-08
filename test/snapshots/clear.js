@@ -23,7 +23,7 @@ const swapsHeaderRow = "Amount,zeroForOne,In,blockNumber\n";
 prepareCsvFile(swapsCsvFilePath, swapsHeaderRow);
 
 // Prepare states.csv
-const statesHeaderRow = "Liquidity, SqrtPriceX96, TickLower, TickUpper, Borrowed, Supplied, Collateral, blockNumber\n";
+const statesHeaderRow = "Liquidity, SqrtPriceX96, SqrtPriceX96c, TickLower, TickUpper, Borrowed, Supplied, Collateral, blockNumber\n";
 prepareCsvFile(statesCsvFilePath, statesHeaderRow);
 
 // Prepare deposits.csv
