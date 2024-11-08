@@ -18,8 +18,6 @@ rm(list = ls())
 deposits <- read.csv("deposits.csv")
 
 states <- read.csv("states.csv")
-#states$Borrowed <- as.numeric(states$Borrowed) / 1e18
-#states$Supplied <- as.numeric(states$Supplied) / 1e18
 states$Collateral <- as.numeric(states$Collateral) / 1e18
 
 
@@ -31,6 +29,13 @@ swaps$Amount <- ifelse(
   as.numeric(swaps$Amount) / 1e6,
   as.numeric(swaps$Amount) / 1e18
 )
+
+swaps$delta0 = as.numeric(swaps$delta0) / 1e6
+swaps$delta0c = as.numeric(swaps$delta0c) / 1e6
+
+swaps$delta1 = as.numeric(swaps$delta1) / 1e18
+swaps$delta1c = as.numeric(swaps$delta1c) / 1e18
+
 
 #head(deposits)
 dim(swaps)
@@ -44,25 +49,28 @@ states_first <- states %>%
   slice(1) %>%
   ungroup()
 
-
 merged_data <- left_join(swaps, states_first, by = "blockNumber")
-merged_data$Amount <- ifelse(merged_data$zeroForOne == FALSE, -merged_data$Amount, merged_data$Amount)
 ```
 
 
 ```{r}
 q = 2**96
 merged_data$price <- 1e12/(merged_data$SqrtPriceX96/q)**2
+merged_data$priceC <- 1e12/(merged_data$SqrtPriceX96c/q)**2
 ```
 
+
+## Swap sqrtPrice with control comparison
 ```{r}
-p_price <- ggplot(merged_data, aes(x = blockNumber, y = price)) + 
-  geom_line(color = "green", size = 1) +
+# Plot the price chart with both 'price' and 'priceC' lines
+p_price <- ggplot(merged_data) +
+  geom_line(aes(x = blockNumber, y = price), color = "green", size = 1) +
+  geom_line(aes(x = blockNumber, y = priceC), color = "red", size = 1, linetype = "dashed") +  # Add 'priceC' line
   labs(title = "Price Chart", y = "Price") +
   theme_minimal()
 
 # Create the trading volume bar chart
-p_volume <- ggplot(merged_data, aes(x = blockNumber, y = Amount)) +
+p_volume <- ggplot(merged_data, aes(x = blockNumber, y = delta1)) +
   geom_bar(stat = "identity", fill = "blue", alpha = 0.7) +
   labs(title = "Trading Volume (Amount)", y = "Amount") +
   theme_minimal()
@@ -95,4 +103,48 @@ combined_plot <- subplot(
 combined_plot
 ```
 
+
+## Swap deltas with control comparison
+```{r}
+# Create the delta0 and delta0c bar chart
+p_delta0 <- ggplot(swaps) +
+  geom_bar(aes(x = blockNumber, y = delta0), stat = "identity", fill = "green", alpha = 0.7) +
+  geom_bar(aes(x = blockNumber, y = delta0c), stat = "identity", fill = "orange", alpha = 0.5) +
+  labs(title = "Delta0 and Delta0c (Amount)", y = "Amount") +
+  theme_minimal()
+
+# Create the delta1 and delta1c bar chart
+p_delta1 <- ggplot(swaps) +
+  geom_bar(aes(x = blockNumber, y = delta1), stat = "identity", fill = "blue", alpha = 0.7) +
+  geom_bar(aes(x = blockNumber, y = delta1c), stat = "identity", fill = "purple", alpha = 0.5) +
+  labs(title = "Delta1 and Delta1c (Amount)", y = "Amount") +
+  theme_minimal()
+
+# Convert ggplot objects to plotly objects
+p_delta0_plotly <- ggplotly(p_delta0)
+p_delta1_plotly <- ggplotly(p_delta1)
+
+# Combine the two bar plots into one figure with specified heights and shared x-axis
+combined_plot <- subplot(
+  p_delta0_plotly, p_delta1_plotly,
+  nrows = 2,
+  shareX = TRUE,
+  heights = c(0.5, 0.5)  # Adjust heights if needed, here it's split equally
+) %>%
+  layout(
+    title = "Delta0 and Delta1 Comparison with Delta0c and Delta1c",
+    xaxis = list(
+      title = "Block Number",
+      rangeslider = list(
+        visible = TRUE,
+        thickness = 0.02
+      )
+    ),
+    yaxis = list(title = "Amount (Delta0 and Delta0c)"),  # Y-axis for Delta0 and Delta0c
+    yaxis2 = list(title = "Amount (Delta1 and Delta1c)")  # Y-axis for Delta1 and Delta1c
+  )
+
+# Show the combined plot
+combined_plot
+```
 
