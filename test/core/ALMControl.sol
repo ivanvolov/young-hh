@@ -7,6 +7,7 @@ import {Hooks} from "v4-core/libraries/Hooks.sol";
 import {Currency} from "v4-core/types/Currency.sol";
 import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
+import {ALMMathLib} from "@src/libraries/ALMMathLib.sol";
 import {PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
@@ -16,6 +17,8 @@ import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
 
 import {LiquidityAmounts} from "v4-core/../test/utils/LiquidityAmounts.sol";
 
+import {IALM} from "@src/interfaces/IALM.sol";
+
 /// @title ALM Control hook for simulation
 /// @author IVikkk
 /// @custom:contact vivan.volovik@gmail.com
@@ -24,7 +27,11 @@ contract ALMControl is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
-    constructor(IPoolManager _manager) BaseHook(_manager) {}
+    IALM hook;
+
+    constructor(IPoolManager _manager, address _hook) BaseHook(_manager) {
+        hook = IALM(_hook);
+    }
 
     function getHookPermissions()
         public
@@ -51,17 +58,12 @@ contract ALMControl is BaseHook {
             });
     }
 
-    function deposit(
-        PoolKey calldata key,
-        uint256 amount,
-        int24 tickLower,
-        int24 tickUpper
-    ) external {
+    function deposit(PoolKey calldata key, uint256 amount) external {
         require(amount != 0);
 
         (uint160 sqrtPriceX96, ) = getTick(key);
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmount1(
-            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(hook.tickUpper()),
             sqrtPriceX96,
             amount
         );
@@ -69,7 +71,13 @@ contract ALMControl is BaseHook {
         poolManager.unlock(
             abi.encodeCall(
                 this.unlockModifyPosition,
-                (key, int128(liquidity), tickLower, tickUpper, msg.sender)
+                (
+                    key,
+                    int128(liquidity),
+                    hook.tickUpper(),
+                    hook.tickLower(),
+                    msg.sender
+                )
             )
         );
     }
@@ -147,5 +155,48 @@ contract ALMControl is BaseHook {
         bytes calldata
     ) external view override onlyByPoolManager returns (bytes4) {
         return ALMControl.afterInitialize.selector;
+    }
+
+    function TVL(PoolKey calldata key) public view returns (uint256) {
+        uint256 price = _calcCurrentPrice(key);
+        (uint256 amount0, uint256 amount1) = getUniswapPositionAmounts(key);
+        return amount1 + (amount0 * 1e30) / price;
+    }
+
+    function getUniswapPositionAmounts(
+        PoolKey calldata key
+    ) public view returns (uint256, uint256) {
+        (
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128
+        ) = poolManager.getPositionInfo(
+                key.toId(),
+                address(this),
+                hook.tickUpper(),
+                hook.tickLower(),
+                bytes32("")
+            );
+
+        (uint160 sqrtPriceX96, ) = getTick(key);
+
+        (uint256 amount0, uint256 amount1) = LiquidityAmounts
+            .getAmountsForLiquidity(
+                sqrtPriceX96,
+                TickMath.getSqrtPriceAtTick(hook.tickUpper()),
+                TickMath.getSqrtPriceAtTick(hook.tickLower()),
+                liquidity
+            );
+        return (
+            amount0 + feeGrowthInside0LastX128,
+            amount1 + feeGrowthInside1LastX128
+        );
+    }
+
+    function _calcCurrentPrice(
+        PoolKey calldata key
+    ) public view returns (uint256) {
+        (uint160 sqrtPriceX96, ) = getTick(key);
+        return ALMMathLib.getPriceFromSqrtPriceX96(sqrtPriceX96);
     }
 }

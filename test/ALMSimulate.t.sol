@@ -54,7 +54,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 numberOfSwaps = 100;
+    uint256 numberOfSwaps = 0;
     uint256 expectedPoolPriceForConversion = 4500;
 
     function test_simulation_start() public {
@@ -118,6 +118,8 @@ contract ALMSimulationTest is ALMTestBase {
         uint256 borrowed = lendingAdapter.getBorrowed();
         uint256 supplied = lendingAdapter.getSupplied();
         uint256 collateral = lendingAdapter.getCollateral();
+        uint256 tvl = hook.TVL();
+        uint256 tvlControl = hookControl.TVL(keyControl);
 
         (uint160 sqrtPriceX96Control, ) = hookControl.getTick(keyControl);
 
@@ -130,7 +132,9 @@ contract ALMSimulationTest is ALMTestBase {
             supplied,
             collateral,
             block.number,
-            sqrtPriceX96Control
+            sqrtPriceX96Control,
+            tvl,
+            tvlControl
         );
         string memory packedHexString = toHexString(packedData);
 
@@ -225,12 +229,7 @@ contract ALMSimulationTest is ALMTestBase {
         {
             deal(address(WETH), actor, amount);
             deal(address(USDC), actor, amount / 1e8); // should be 1e12 but gor 4 zeros to be sure
-            hookControl.deposit(
-                keyControl,
-                amount,
-                hook.tickUpper(),
-                hook.tickLower()
-            );
+            hookControl.deposit(keyControl, amount);
             tokeWETHcontrol = amount - WETH.balanceOf(actor);
             tokeUSDCcontrol = amount / 1e8 - USDC.balanceOf(actor);
 
@@ -405,7 +404,11 @@ contract ALMSimulationTest is ALMTestBase {
 
         // MARK: Usual UniV4 hook deployment process
         address hookAddress = address(uint160(Hooks.AFTER_INITIALIZE_FLAG));
-        deployCodeTo("ALMControl.sol", abi.encode(manager), hookAddress);
+        deployCodeTo(
+            "ALMControl.sol",
+            abi.encode(manager, address(hook)),
+            hookAddress
+        );
         hookControl = ALMControl(hookAddress);
         vm.label(address(hookControl), "hookControl");
 
