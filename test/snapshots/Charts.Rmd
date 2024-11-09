@@ -9,6 +9,7 @@ library(ggplot2)
 library(tidyverse)
 library(plotly)
 library(gridExtra)
+library(knitr)
 library(dplyr)
 ```
 
@@ -140,8 +141,52 @@ combined_plot <- subplot(
         thickness = 0.02
       )
     ),
-    yaxis = list(title = "Amount (Delta0 and Delta0c)"),  # Y-axis for Delta0 and Delta0c
-    yaxis2 = list(title = "Amount (Delta1 and Delta1c)")  # Y-axis for Delta1 and Delta1c
+    yaxis = list(title = "delta0"),  # Y-axis for Delta0 and Delta0c
+    yaxis2 = list(title = "delta1")  # Y-axis for Delta1 and Delta1c
+  )
+
+# Show the combined plot
+combined_plot
+```
+```{r}
+swaps <- swaps %>%
+  mutate(
+    abs_diff_delta0 = abs(delta0 - delta0c),
+    abs_diff_delta1 = abs(delta1 - delta1c)
+  )
+
+p_abs_diff_delta0 <- ggplot(swaps) +
+  geom_bar(aes(x = blockNumber, y = abs_diff_delta0), stat = "identity", fill = "green", alpha = 0.7) +
+  labs(title = "abs diff d0", y = "AD") +
+  theme_minimal()
+
+p_abs_diff_delta1 <- ggplot(swaps) +
+  geom_bar(aes(x = blockNumber, y = abs_diff_delta1), stat = "identity", fill = "blue", alpha = 0.7) +
+  labs(title = "abs diff d1", y = "AD") +
+  theme_minimal()
+
+# Convert ggplot objects to plotly objects
+p_abs_diff_delta0_plotly <- ggplotly(p_abs_diff_delta0)
+p_abs_diff_delta1_plotly <- ggplotly(p_abs_diff_delta1)
+
+# Combine the two bar plots into one figure with specified heights and shared x-axis
+combined_plot <- subplot(
+  p_abs_diff_delta0_plotly, p_abs_diff_delta1_plotly,
+  nrows = 2,
+  shareX = TRUE,
+  heights = c(0.5, 0.5)
+) %>%
+  layout(
+    title = "Absolute Differences for Delta0 and Delta1 vs control",
+    xaxis = list(
+      title = "Block Number",
+      rangeslider = list(
+        visible = TRUE,
+        thickness = 0.02
+      )
+    ),
+    yaxis = list(title = "abs diff d0"),
+    yaxis2 = list(title = "abs diff d1")
   )
 
 # Show the combined plot

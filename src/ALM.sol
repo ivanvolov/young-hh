@@ -201,7 +201,6 @@ contract ALM is BaseStrategyHook, ERC20 {
 
     // --- Internal and view functions ---
 
-    //TODO: test price against normal pull
     function getZeroForOneDeltas(
         int256 amountSpecified
     )

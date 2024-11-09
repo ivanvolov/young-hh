@@ -10,7 +10,6 @@ import {LiquidityAmounts} from "v4-core/../test/utils/LiquidityAmounts.sol";
 library ALMMathLib {
     using PRBMathUD60x18 for uint256;
 
-    //TODO: optimize after, not now
     function sqrtPriceNextX96OneForZeroIn(
         uint160 sqrtPriceCurrentX96,
         uint128 liquidity,
@@ -37,7 +36,7 @@ library ALMMathLib {
         return
             toUint160(
                 uint256(liquidity).mul(uint256(sqrtPriceCurrentX96)).div(
-                    uint256(liquidity) +
+                    uint256(liquidity) -
                         amount0.mul(uint256(sqrtPriceCurrentX96)).div(2 ** 96)
                 )
             );
@@ -51,7 +50,7 @@ library ALMMathLib {
         return
             toUint160(
                 uint256(liquidity).mul(uint256(sqrtPriceCurrentX96)).div(
-                    uint256(liquidity) -
+                    uint256(liquidity) +
                         amount0.mul(uint256(sqrtPriceCurrentX96)).div(2 ** 96)
                 )
             );
