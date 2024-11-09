@@ -33,16 +33,18 @@ function decodeSwapData(buffer) {
     const supplied = BigNumber.from(buffer.slice(74, 106)).toString(); // uint256 (32 bytes)
     const collateral = BigNumber.from(buffer.slice(106, 138)).toString(); // uint256 (32 bytes)
     const blockNumber = BigNumber.from(buffer.slice(138, 170)).toString(); // uint256 (32 bytes)
-    const sqrtPriceX96Control = BigNumber.from(buffer.slice(170, 170+20)).toString(); // uint160 (20 bytes)
+    const sqrtPriceX96Control = BigNumber.from(buffer.slice(170, 190)).toString(); // uint160 (20 bytes)
+    const tvl = BigNumber.from(buffer.slice(190, 190+32)).toString(); // uint256 (32 bytes)
+    const tvlControl = BigNumber.from(buffer.slice(190+32, 190+64)).toString(); // uint256 (32 bytes)
 
 
-    return { liquidity, sqrtPriceX96, tickLower, tickUpper, borrowed, supplied, collateral, blockNumber, sqrtPriceX96Control };
+    return { liquidity, sqrtPriceX96, tickLower, tickUpper, borrowed, supplied, collateral, blockNumber, sqrtPriceX96Control, tvl, tvlControl };
 }
 
 const packedBuffer = hexToBuffer(packedHexString);
 // console.log(decodeSwapData(packedBuffer));
-const { liquidity, sqrtPriceX96, tickLower, tickUpper, borrowed, supplied, collateral, blockNumber, sqrtPriceX96Control } = decodeSwapData(packedBuffer);
+const { liquidity, sqrtPriceX96, tickLower, tickUpper, borrowed, supplied, collateral, blockNumber, sqrtPriceX96Control, tvl, tvlControl } = decodeSwapData(packedBuffer);
 
-const csvData = `${liquidity},${sqrtPriceX96},${sqrtPriceX96Control},${tickLower},${tickUpper},${borrowed},${supplied},${collateral},${blockNumber}\n`;
+const csvData = `${liquidity},${sqrtPriceX96},${sqrtPriceX96Control},${tickLower},${tickUpper},${borrowed},${supplied},${collateral},${blockNumber},${tvl},${tvlControl}\n`;
 fs.appendFileSync(csvFilePath, csvData, "utf8");
 console.log(`Swap data written to ${csvFilePath}`);
