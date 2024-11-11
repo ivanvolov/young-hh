@@ -54,7 +54,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 numberOfSwaps = 0;
+    uint256 numberOfSwaps = 10;
     uint256 expectedPoolPriceForConversion = 4500;
 
     function test_simulation_start() public {
@@ -119,9 +119,12 @@ contract ALMSimulationTest is ALMTestBase {
         uint256 supplied = lendingAdapter.getSupplied();
         uint256 collateral = lendingAdapter.getCollateral();
         uint256 tvl = hook.TVL();
-        uint256 tvlControl = hookControl.TVL(keyControl);
+        console.log(">>> tvl", tvl);
+        uint256 tvlControl = hookControl.TVL();
+        uint256 sharePrice = hook.sharePrice();
+        uint256 sharePriceControl = hookControl.sharePrice();
 
-        (uint160 sqrtPriceX96Control, ) = hookControl.getTick(keyControl);
+        (uint160 sqrtPriceX96Control, ) = hookControl.getTick();
 
         bytes memory packedData = abi.encodePacked(
             liquidity,
@@ -134,7 +137,9 @@ contract ALMSimulationTest is ALMTestBase {
             block.number,
             sqrtPriceX96Control,
             tvl,
-            tvlControl
+            tvlControl,
+            sharePrice,
+            sharePriceControl
         );
         string memory packedHexString = toHexString(packedData);
 
@@ -225,28 +230,36 @@ contract ALMSimulationTest is ALMTestBase {
 
         uint256 tokeWETHcontrol;
         uint256 tokeUSDCcontrol;
+        uint256 delSharesControl;
 
         {
             deal(address(WETH), actor, amount);
             deal(address(USDC), actor, amount / 1e8); // should be 1e12 but gor 4 zeros to be sure
-            hookControl.deposit(keyControl, amount);
+            delSharesControl = hookControl.balanceOf(actor);
+            hookControl.deposit(amount);
             tokeWETHcontrol = amount - WETH.balanceOf(actor);
             tokeUSDCcontrol = amount / 1e8 - USDC.balanceOf(actor);
 
             // ** Clear up account
             WETH.transfer(zero.addr, WETH.balanceOf(actor));
             USDC.transfer(zero.addr, USDC.balanceOf(actor));
+
+            delSharesControl = hookControl.balanceOf(actor) - delSharesControl;
         }
 
         uint256 tokeWETH;
+        uint256 delShares;
         {
             deal(address(WETH), actor, amount);
+            delShares = hook.balanceOf(actor);
             hook.deposit(actor, amount);
             tokeWETH = amount - WETH.balanceOf(actor);
 
             // ** Clear up account
             WETH.transfer(zero.addr, WETH.balanceOf(actor));
             USDC.transfer(zero.addr, USDC.balanceOf(actor));
+
+            delShares = hook.balanceOf(actor) - delShares;
         }
 
         save_deposit_data(
@@ -254,7 +267,9 @@ contract ALMSimulationTest is ALMTestBase {
             actor,
             tokeWETH,
             tokeWETHcontrol,
-            tokeUSDCcontrol
+            tokeUSDCcontrol,
+            delShares,
+            delSharesControl
         );
         vm.stopPrank();
     }
@@ -264,7 +279,9 @@ contract ALMSimulationTest is ALMTestBase {
         address actor,
         uint256 tokeWETH,
         uint256 tokeWETHcontrol,
-        uint256 tokeUSDCcontrol
+        uint256 tokeUSDCcontrol,
+        uint256 delShares,
+        uint256 delSharesControl
     ) internal {
         bytes memory packedData = abi.encodePacked(
             amount,
@@ -272,7 +289,9 @@ contract ALMSimulationTest is ALMTestBase {
             block.number,
             tokeWETH,
             tokeWETHcontrol,
-            tokeUSDCcontrol
+            tokeUSDCcontrol,
+            delShares,
+            delSharesControl
         );
         string memory packedHexString = toHexString(packedData);
 

@@ -18,14 +18,16 @@ function decodeDepositData(buffer) {
     const tokeWeth = BigNumber.from(buffer.slice(84, 84+32)).toString(); // uint256 (32 bytes)
     const tokeWethControl = BigNumber.from(buffer.slice(84+32, 84+32*2)).toString(); // uint256 (32 bytes)
     const tokeUsdcControl = BigNumber.from(buffer.slice(84+32*2, 84+32*3)).toString(); // uint256 (32 bytes)
-    return { amount, actor, blockNumber, tokeWeth, tokeWethControl, tokeUsdcControl };
+    const delShares = BigNumber.from(buffer.slice(84+32*3, 84+32*4)).toString(); // uint256 (32 bytes)
+    const delSharesControl = BigNumber.from(buffer.slice(84+32*4, 84+32*5)).toString(); // uint256 (32 bytes)
+    return { amount, actor, blockNumber, tokeWeth, tokeWethControl, tokeUsdcControl, delShares, delSharesControl };
 }
 
 // Decode the hex string
 const packedBuffer = hexToBuffer(packedHexString);
-const { amount, actor, blockNumber, tokeWeth, tokeWethControl, tokeUsdcControl } = decodeDepositData(packedBuffer);
+const { amount, actor, blockNumber, tokeWeth, tokeWethControl, tokeUsdcControl, delShares, delSharesControl } = decodeDepositData(packedBuffer);
 
 // Append deposit data to CSV file
-const csvData = `${amount},${tokeWeth},${tokeWethControl},${tokeUsdcControl},${actor},${blockNumber}\n`;
+const csvData = `${amount},${tokeWeth},${tokeWethControl},${tokeUsdcControl},${actor},${blockNumber},${delShares},${delSharesControl}\n`;
 fs.appendFileSync(csvFilePath, csvData, "utf8");
 console.log(`Deposit data written to ${csvFilePath}`);

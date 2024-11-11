@@ -14,6 +14,7 @@ import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
+import {ERC20} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
 import {LiquidityAmounts} from "v4-core/../test/utils/LiquidityAmounts.sol";
 
@@ -22,14 +23,19 @@ import {IALM} from "@src/interfaces/IALM.sol";
 /// @title ALM Control hook for simulation
 /// @author IVikkk
 /// @custom:contact vivan.volovik@gmail.com
-contract ALMControl is BaseHook {
+contract ALMControl is BaseHook, ERC20 {
     using CurrencySettler for Currency;
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
     IALM hook;
 
-    constructor(IPoolManager _manager, address _hook) BaseHook(_manager) {
+    PoolKey key;
+
+    constructor(
+        IPoolManager _manager,
+        address _hook
+    ) BaseHook(_manager) ERC20("ALMControl", "hhALMControl") {
         hook = IALM(_hook);
     }
 
@@ -58,15 +64,18 @@ contract ALMControl is BaseHook {
             });
     }
 
-    function deposit(PoolKey calldata key, uint256 amount) external {
+    function deposit(uint256 amount) external {
         require(amount != 0);
 
-        (uint160 sqrtPriceX96, ) = getTick(key);
+        (uint160 sqrtPriceX96, ) = getTick();
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmount1(
             TickMath.getSqrtPriceAtTick(hook.tickUpper()),
             sqrtPriceX96,
             amount
         );
+
+        uint256 TVL1 = TVL();
+        uint256 sharePrice = sharePrice();
 
         poolManager.unlock(
             abi.encodeCall(
@@ -80,11 +89,25 @@ contract ALMControl is BaseHook {
                 )
             )
         );
+
+        if (sharePrice == 0) {
+            _mint(msg.sender, TVL());
+        } else {
+            uint256 shares = ((TVL() - TVL1) * 1e18) / sharePrice;
+            _mint(msg.sender, shares);
+        }
     }
 
-    function getTick(
-        PoolKey calldata key
-    ) public view returns (uint160 sqrtPriceX96, int24 currentTick) {
+    function sharePrice() public view returns (uint256) {
+        if (totalSupply() == 0) return 0;
+        return (TVL() * 1e18) / totalSupply();
+    }
+
+    function getTick()
+        public
+        view
+        returns (uint160 sqrtPriceX96, int24 currentTick)
+    {
         (sqrtPriceX96, currentTick, , ) = poolManager.getSlot0(key.toId());
     }
 
@@ -147,25 +170,17 @@ contract ALMControl is BaseHook {
         return "";
     }
 
-    function afterInitialize(
-        address,
-        PoolKey calldata,
-        uint160,
-        int24,
-        bytes calldata
-    ) external view override onlyByPoolManager returns (bytes4) {
-        return ALMControl.afterInitialize.selector;
-    }
-
-    function TVL(PoolKey calldata key) public view returns (uint256) {
-        uint256 price = _calcCurrentPrice(key);
-        (uint256 amount0, uint256 amount1) = getUniswapPositionAmounts(key);
+    function TVL() public view returns (uint256) {
+        uint256 price = _calcCurrentPrice();
+        (uint256 amount0, uint256 amount1) = getUniswapPositionAmounts();
         return amount1 + (amount0 * 1e30) / price;
     }
 
-    function getUniswapPositionAmounts(
-        PoolKey calldata key
-    ) public view returns (uint256, uint256) {
+    function getUniswapPositionAmounts()
+        public
+        view
+        returns (uint256, uint256)
+    {
         (
             uint128 liquidity,
             uint256 feeGrowthInside0LastX128,
@@ -178,7 +193,7 @@ contract ALMControl is BaseHook {
                 bytes32("")
             );
 
-        (uint160 sqrtPriceX96, ) = getTick(key);
+        (uint160 sqrtPriceX96, ) = getTick();
 
         (uint256 amount0, uint256 amount1) = LiquidityAmounts
             .getAmountsForLiquidity(
@@ -193,10 +208,19 @@ contract ALMControl is BaseHook {
         );
     }
 
-    function _calcCurrentPrice(
-        PoolKey calldata key
-    ) public view returns (uint256) {
-        (uint160 sqrtPriceX96, ) = getTick(key);
+    function _calcCurrentPrice() public view returns (uint256) {
+        (uint160 sqrtPriceX96, ) = getTick();
         return ALMMathLib.getPriceFromSqrtPriceX96(sqrtPriceX96);
+    }
+
+    function afterInitialize(
+        address,
+        PoolKey calldata _key,
+        uint160,
+        int24,
+        bytes calldata
+    ) external override returns (bytes4) {
+        key = _key;
+        return ALMControl.afterInitialize.selector;
     }
 }
