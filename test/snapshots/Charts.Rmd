@@ -4,9 +4,10 @@ output: html_notebook
 ---
 
 
-```{r}
+```{r warnigns=false}
 library(ggplot2)
 library(tidyverse)
+library(DT)
 library(plotly)
 library(gridExtra)
 library(knitr)
@@ -16,7 +17,7 @@ library(dplyr)
 
 ```{r}
 rm(list = ls())
-deposits <- read.csv("deposits.csv")
+deposits <- read.csv("deposits.csv", colClasses = c("Actor" = "character"))
 
 states <- read.csv("states.csv")
 states$Collateral <- as.numeric(states$Collateral) / 1e18
@@ -63,6 +64,7 @@ merged_data$priceC <- 1e12/(merged_data$SqrtPriceX96c/q)**2
 
 ## Swap sqrtPrice with control comparison
 ```{r}
+if (nrow(merged_data) > 0) {
 # Plot the price chart with both 'price' and 'priceC' lines
 p_price <- ggplot(merged_data) +
   geom_line(aes(x = blockNumber, y = price), color = "green", size = 1) +
@@ -102,11 +104,13 @@ combined_plot <- subplot(
 
 # Show the combined plot
 combined_plot
+}
 ```
 
 
 ## Swap deltas with control comparison
 ```{r}
+if (nrow(swaps) > 0) {
 # Create the delta0 and delta0c bar chart
 p_delta0 <- ggplot(swaps) +
   geom_bar(aes(x = blockNumber, y = delta0), stat = "identity", fill = "green", alpha = 0.7) +
@@ -147,8 +151,10 @@ combined_plot <- subplot(
 
 # Show the combined plot
 combined_plot
+}
 ```
 ```{r}
+if (nrow(swaps) > 0) {
 swaps <- swaps %>%
   mutate(
     abs_diff_delta0 = abs(delta0 - delta0c),
@@ -191,26 +197,20 @@ combined_plot <- subplot(
 
 # Show the combined plot
 combined_plot
+}
 ```
-```{r}
-# Plot the share price chart with both 'sharePrice' and 'sharePriceControl' lines
-states_1 <- states
-states_1$tvl <-  states_1$tvl/1e18
-states_1$tvlControl <-  states_1$tvlControl/(1e18*2)
 
+```{r}
+states_1 <- states
 states_1$sharePrice <- states_1$sharePrice/ 1e18
 states_1$sharePriceControl <-  states_1$sharePriceControl/(1e18)
-# Plot the share price chart with both 'sharePrice' and 'sharePriceControl' lines
+
 p_sharePrice <- ggplot(states_1) +
   geom_line(aes(x = blockNumber, y = sharePrice), color = "green", size = 1) +
   geom_line(aes(x = blockNumber, y = sharePriceControl), color = "red", size = 1, linetype = "dashed") +
   labs(title = "Share Price Chart", y = "Share Price") +
   theme_minimal()
-
-# Convert ggplot object to plotly object
 p_sharePrice_plotly <- ggplotly(p_sharePrice)
-
-# Display only the share price plot
 combined_plot <- p_sharePrice_plotly %>%
   layout(
     title = "Pool ALM",
@@ -218,14 +218,56 @@ combined_plot <- p_sharePrice_plotly %>%
       title = "Block Number", 
       rangeslider = list(
         visible = TRUE, 
-        thickness = 0.02  # Adjust thickness of the range slider to reduce height
+        thickness = 0.02
       )
     ),
-    yaxis = list(title = "Share Price")  # Y-axis for the share price chart
+    yaxis = list(title = "Share Price")
   )
-
-# Show the plot
 combined_plot
+```
+
+```{r}
+states_1 <- states
+states_1$tvl <-  states_1$tvl/1e18
+states_1$tvlControl <-  states_1$tvlControl/(1e18*2)
+
+p_sharePrice <- ggplot(states_1) +
+  geom_line(aes(x = blockNumber, y = tvl), color = "green", size = 1) +
+  geom_line(aes(x = blockNumber, y = tvlControl), color = "red", size = 1, linetype = "dashed") +
+  labs(title = "TVL Chart", y = "TVL") +
+  theme_minimal()
+p_sharePrice_plotly <- ggplotly(p_sharePrice)
+combined_plot <- p_sharePrice_plotly %>%
+  layout(
+    title = "Pool ALM",
+    xaxis = list(
+      title = "Block Number", 
+      rangeslider = list(
+        visible = TRUE, 
+        thickness = 0.02
+      )
+    ),
+    yaxis = list(title = "TVL")
+  )
+combined_plot
+```
+
+
+```{r}
+deposits_m <- deposits[, c("tWETH", "tWETHc", "tUSDCc", "blockNumber", "Actor", "delShares", "delSharesControl")] %>% 
+  arrange(blockNumber) %>%
+  mutate(actor = paste0("Actor", as.integer(factor(Actor)))) %>%
+  select(-Actor)
+
+deposits_m$tWETH = as.numeric(deposits_m$tWETH) / 1e18
+deposits_m$tWETHc = as.numeric(deposits_m$tWETHc) / 1e18
+deposits_m$tUSDCc = as.numeric(deposits_m$tUSDCc) / 1e6
+
+deposits_m$delShares = as.numeric(deposits_m$delShares) / 1e18
+deposits_m$delSharesControl = as.numeric(deposits_m$delSharesControl) / 1e18
+
+datatable(deposits_m, options = list(pageLength = 100), caption = "Deposits Table") %>%
+  formatRound(columns = c("tWETH", "tWETHc"), digits = 2) %>% formatRound(columns = c("tUSDCc", "delShares", "delSharesControl"), digits = 0)
 
 ```
 

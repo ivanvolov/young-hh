@@ -75,7 +75,7 @@ contract ALMControl is BaseHook, ERC20 {
         );
 
         uint256 TVL1 = TVL();
-        uint256 sharePrice = sharePrice();
+        uint256 _sharePrice = sharePrice();
 
         poolManager.unlock(
             abi.encodeCall(
@@ -90,10 +90,10 @@ contract ALMControl is BaseHook, ERC20 {
             )
         );
 
-        if (sharePrice == 0) {
+        if (_sharePrice == 0) {
             _mint(msg.sender, TVL());
         } else {
-            uint256 shares = ((TVL() - TVL1) * 1e18) / sharePrice;
+            uint256 shares = ((TVL() - TVL1) * 1e18) / _sharePrice;
             _mint(msg.sender, shares);
         }
     }
@@ -173,6 +173,8 @@ contract ALMControl is BaseHook, ERC20 {
     function TVL() public view returns (uint256) {
         uint256 price = _calcCurrentPrice();
         (uint256 amount0, uint256 amount1) = getUniswapPositionAmounts();
+        console.log("amount0", amount0);
+        console.log("amount1", amount1);
         return amount1 + (amount0 * 1e30) / price;
     }
 
