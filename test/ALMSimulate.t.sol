@@ -54,10 +54,12 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
+    uint256 maxDeposits = 10;
     uint256 numberOfSwaps = 10;
     uint256 expectedPoolPriceForConversion = 4500;
 
     function test_simulation_start() public {
+        uint256 depositsRemained = maxDeposits;
         console.log("Simulation started");
         console.log(block.timestamp);
         console.log(block.number);
@@ -96,12 +98,15 @@ contract ALMSimulationTest is ALMTestBase {
             save_pool_state();
 
             // ** Do random deposits
-            randomAmount = random(100);
-            if (randomAmount <= 20) {
-                randomAmount = random(10);
-                address actor = getRandomAddress();
-                deposit(randomAmount * 1e18, actor);
-                save_pool_state();
+            if (depositsRemained > 0) {
+                randomAmount = random(100);
+                if (randomAmount <= 20) {
+                    randomAmount = random(10);
+                    address actor = getRandomAddress();
+                    deposit(randomAmount * 1e18, actor);
+                    save_pool_state();
+                    depositsRemained--;
+                }
             }
 
             // ** Roll block after each iteration
@@ -119,8 +124,9 @@ contract ALMSimulationTest is ALMTestBase {
         uint256 supplied = lendingAdapter.getSupplied();
         uint256 collateral = lendingAdapter.getCollateral();
         uint256 tvl = hook.TVL();
-        console.log(">>> tvl", tvl);
         uint256 tvlControl = hookControl.TVL();
+        // console.log("tvl", tvl);
+        // console.log("tvlControl", tvlControl);
         uint256 sharePrice = hook.sharePrice();
         uint256 sharePriceControl = hookControl.sharePrice();
 

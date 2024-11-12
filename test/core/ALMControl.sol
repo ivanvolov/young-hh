@@ -16,6 +16,9 @@ import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
 import {ERC20} from "permit2/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
+import {FixedPoint128} from "v4-core/libraries/FixedPoint128.sol";
+import {FullMath} from "v4-core/libraries/FullMath.sol";
+
 import {LiquidityAmounts} from "v4-core/../test/utils/LiquidityAmounts.sol";
 
 import {IALM} from "@src/interfaces/IALM.sol";
@@ -173,8 +176,8 @@ contract ALMControl is BaseHook, ERC20 {
     function TVL() public view returns (uint256) {
         uint256 price = _calcCurrentPrice();
         (uint256 amount0, uint256 amount1) = getUniswapPositionAmounts();
-        console.log("amount0", amount0);
-        console.log("amount1", amount1);
+        // console.log("amount0", amount0);
+        // console.log("amount1", amount1);
         return amount1 + (amount0 * 1e30) / price;
     }
 
@@ -204,10 +207,20 @@ contract ALMControl is BaseHook, ERC20 {
                 TickMath.getSqrtPriceAtTick(hook.tickLower()),
                 liquidity
             );
-        return (
-            amount0 + feeGrowthInside0LastX128,
-            amount1 + feeGrowthInside1LastX128
+
+        uint256 owed0 = FullMath.mulDiv(
+            feeGrowthInside0LastX128,
+            liquidity,
+            FixedPoint128.Q128
         );
+
+        uint256 owed1 = FullMath.mulDiv(
+            feeGrowthInside1LastX128,
+            liquidity,
+            FixedPoint128.Q128
+        );
+        //TODO: check if this fee calculation is working good
+        return (amount0 + owed0, amount1 + owed1);
     }
 
     function _calcCurrentPrice() public view returns (uint256) {
