@@ -42,6 +42,18 @@ contract ALMTest is ALMTestBase {
         presetChainlinkOracles();
     }
 
+    function test_hook_deployment_exploit_revert() public {
+        vm.expectRevert();
+        (key, ) = initPool(
+            Currency.wrap(address(USDC)),
+            Currency.wrap(address(WETH)),
+            hook,
+            poolFee + 1,
+            initialSQRTPrice,
+            ""
+        );
+    }
+
     function test_morpho_lending_adapter_supply() public {
         // ** Enable Alice to call the adapter
         vm.prank(deployer.addr);
@@ -438,6 +450,25 @@ contract ALMTest is ALMTestBase {
         rebalanceAdapter.setTickDeltaThreshold(250);
 
         // MARK: Pool deployment
+        PoolKey memory _key = PoolKey(
+            Currency.wrap(address(USDC)),
+            Currency.wrap(address(WETH)),
+            poolFee,
+            int24((poolFee / 100) * 2),
+            hook
+        ); // pre-compute key in order to restrict hook to this pool
+
+        vm.expectRevert();
+        (key, ) = initPool(
+            Currency.wrap(address(USDC)),
+            Currency.wrap(address(WETH)),
+            hook,
+            poolFee,
+            initialSQRTPrice,
+            ""
+        );
+
+        hook.setAuthorizedPool(_key);
         (key, ) = initPool(
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),

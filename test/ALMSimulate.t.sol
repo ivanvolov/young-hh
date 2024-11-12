@@ -402,6 +402,15 @@ contract ALMSimulationTest is ALMTestBase {
         rebalanceAdapter.setTickDeltaThreshold(250);
 
         // MARK: Pool deployment
+        PoolKey memory _key = PoolKey(
+            Currency.wrap(address(USDC)),
+            Currency.wrap(address(WETH)),
+            poolFee,
+            int24((poolFee / 100) * 2),
+            hook
+        ); // pre-compute key in order to restrict hook to this pool
+
+        hook.setAuthorizedPool(_key);
         (key, ) = initPool(
             Currency.wrap(address(USDC)),
             Currency.wrap(address(WETH)),
@@ -415,7 +424,6 @@ contract ALMSimulationTest is ALMTestBase {
         hook.setRebalanceAdapter(address(rebalanceAdapter));
         assertEq(hook.tickLower(), 192230 + 3000);
         assertEq(hook.tickUpper(), 192230 - 3000);
-        hook.setAuthorizedPool(key);
         // MARK END
 
         // This is needed in order to simulate proper accounting

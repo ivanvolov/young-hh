@@ -37,12 +37,19 @@ contract ALM is BaseStrategyHook, ERC20 {
 
     function afterInitialize(
         address,
-        PoolKey calldata,
+        PoolKey calldata key,
         uint160 sqrtPrice,
         int24,
         bytes calldata
-    ) external override onlyByPoolManager returns (bytes4) {
-        sqrtPriceCurrent = sqrtPrice; //TODO: this is potentiall volnurability, every pool creation is a price change. Do proper restriction on who can create pool with this hook. Or authorizedPoolKey.
+    )
+        external
+        override
+        onlyByPoolManager
+        onlyAuthorizedPool(key)
+        returns (bytes4)
+    {
+        console.log("> afterInitialize");
+        sqrtPriceCurrent = sqrtPrice;
         _updateBoundaries();
         return ALM.afterInitialize.selector;
     }
