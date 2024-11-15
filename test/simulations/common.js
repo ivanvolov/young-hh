@@ -37,12 +37,29 @@ function decodeDepositData(buffer, types) {
                 data.push(decodeInt24BE(buffer, offset));
                 offset += 3;
                 break;
+            case "int256":
+                data.push(decodeInt256(buffer, offset));
+                offset += 32;
+                break;
+            case "boolean":
+                data.push(buffer.readUInt8(offset) === 1);
+                offset += 1;
+                break;
             default:
                 throw new Error(`Unsupported type: ${type}`);
         }
     }
 
     return data;
+}
+
+function decodeInt256(buffer, offset) {
+    let intValue = BigInt("0x" + buffer.slice(offset, offset + 32).toString("hex"));
+    const isNegative = intValue >= 1n << 255n;
+    if (isNegative) {
+        intValue -= 1n << 256n;
+    }
+    return intValue.toString();
 }
 
 function decodeHexString(hexString, types) {
@@ -56,7 +73,17 @@ function saveToCSV(name, csvData) {
     console.log(`${name} data written to ${csvFilePath}`);
 }
 
+function prepareCsvFile(name, headerRow) {
+    const filePath = `test/simulations/out/${name}.csv`;
+    if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+    }
+    fs.writeFileSync(filePath, headerRow, "utf8");
+    console.log(`${filePath} prepared.`);
+}
+
 module.exports = {
     saveToCSV,
     decodeHexString,
+    prepareCsvFile,
 };

@@ -29,6 +29,8 @@ contract ALMTest is ALMTestBase {
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
 
     function setUp() public {
+        initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
+
         uint256 mainnetFork = vm.createFork(MAINNET_RPC_URL);
         vm.selectFork(mainnetFork);
         vm.rollFork(19_955_703);
@@ -247,10 +249,7 @@ contract ALMTest is ALMTestBase {
         vm.prank(deployer.addr);
         rebalanceAdapter.rebalance();
 
-        assertEq(
-            rebalanceAdapter.sqrtPriceLastRebalance(),
-            1199991337229301579466306546906758
-        );
+        assertEq(rebalanceAdapter.sqrtPriceLastRebalance(), 1199991337229301579466306546906758);
 
         assertEqBalanceState(address(hook), 0, 0);
         assertEqMorphoA(depositUSDCmId, 0, 0, 0);
@@ -329,13 +328,7 @@ contract ALMTest is ALMTestBase {
 
         assertEqBalanceState(address(hook), 0, 0);
         assertEqMorphoA(depositUSDCmId, address(newAdapter), 0, 0, 0);
-        assertEqMorphoA(
-            borrowUSDCmId,
-            address(newAdapter),
-            0,
-            0,
-            98956727267096030628
-        );
+        assertEqMorphoA(borrowUSDCmId, address(newAdapter), 0, 0, 98956727267096030628);
     }
 
     function test_accessability() public {
@@ -343,39 +336,19 @@ contract ALMTest is ALMTestBase {
         hook.afterInitialize(address(0), key, 0, 0, "");
 
         vm.expectRevert(IALM.AddLiquidityThroughHook.selector);
-        hook.beforeAddLiquidity(
-            address(0),
-            key,
-            IPoolManager.ModifyLiquidityParams(0, 0, 0, ""),
-            ""
-        );
+        hook.beforeAddLiquidity(address(0), key, IPoolManager.ModifyLiquidityParams(0, 0, 0, ""), "");
 
         PoolKey memory failedKey = key;
         failedKey.tickSpacing = 3;
 
         vm.expectRevert(IALM.UnauthorizedPool.selector);
-        hook.beforeAddLiquidity(
-            address(0),
-            failedKey,
-            IPoolManager.ModifyLiquidityParams(0, 0, 0, ""),
-            ""
-        );
+        hook.beforeAddLiquidity(address(0), failedKey, IPoolManager.ModifyLiquidityParams(0, 0, 0, ""), "");
 
         vm.expectRevert(SafeCallback.NotPoolManager.selector);
-        hook.beforeSwap(
-            address(0),
-            key,
-            IPoolManager.SwapParams(true, 0, 0),
-            ""
-        );
+        hook.beforeSwap(address(0), key, IPoolManager.SwapParams(true, 0, 0), "");
 
         vm.expectRevert(IALM.UnauthorizedPool.selector);
-        hook.beforeSwap(
-            address(0),
-            failedKey,
-            IPoolManager.SwapParams(true, 0, 0),
-            ""
-        );
+        hook.beforeSwap(address(0), failedKey, IPoolManager.SwapParams(true, 0, 0), "");
     }
 
     function test_pause() public {
@@ -390,12 +363,7 @@ contract ALMTest is ALMTestBase {
 
         vm.prank(address(manager));
         vm.expectRevert(IALM.ContractPaused.selector);
-        hook.beforeSwap(
-            address(0),
-            key,
-            IPoolManager.SwapParams(true, 0, 0),
-            ""
-        );
+        hook.beforeSwap(address(0), key, IPoolManager.SwapParams(true, 0, 0), "");
     }
 
     function test_shutdown() public {
@@ -407,139 +375,6 @@ contract ALMTest is ALMTestBase {
 
         vm.prank(address(manager));
         vm.expectRevert(IALM.ContractShutdown.selector);
-        hook.beforeSwap(
-            address(0),
-            key,
-            IPoolManager.SwapParams(true, 0, 0),
-            ""
-        );
-    }
-
-    // -- Helpers --
-
-    uint160 initialSQRTPrice = 1182773400228691521900860642689024; // 4487 usdc for eth (but in reversed tokens order). Tick: 192228
-
-    function init_hook() internal {
-        vm.startPrank(deployer.addr);
-
-        // MARK: Usual UniV4 hook deployment process
-        address hookAddress = address(
-            uint160(
-                Hooks.BEFORE_SWAP_FLAG |
-                    Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG |
-                    Hooks.BEFORE_ADD_LIQUIDITY_FLAG |
-                    Hooks.AFTER_INITIALIZE_FLAG
-            )
-        );
-        deployCodeTo("ALM.sol", abi.encode(manager), hookAddress);
-        hook = ALM(hookAddress);
-        assertEq(hook.hookDeployer(), deployer.addr);
-        // MARK END
-
-        rebalanceAdapter = new SRebalanceAdapter();
-        lendingAdapter = new MorphoLendingAdapter();
-
-        lendingAdapter.setDepositUSDCmId(depositUSDCmId);
-        lendingAdapter.setBorrowUSDCmId(borrowUSDCmId);
-        lendingAdapter.addAuthorizedCaller(address(hook));
-        lendingAdapter.addAuthorizedCaller(address(rebalanceAdapter));
-
-        rebalanceAdapter.setALM(address(hook));
-        rebalanceAdapter.setLendingAdapter(address(lendingAdapter));
-        rebalanceAdapter.setSqrtPriceLastRebalance(initialSQRTPrice);
-        rebalanceAdapter.setTickDeltaThreshold(250);
-
-        // MARK: Pool deployment
-        PoolKey memory _key = PoolKey(
-            Currency.wrap(address(USDC)),
-            Currency.wrap(address(WETH)),
-            poolFee,
-            int24((poolFee / 100) * 2),
-            hook
-        ); // pre-compute key in order to restrict hook to this pool
-
-        vm.expectRevert();
-        (key, ) = initPool(
-            Currency.wrap(address(USDC)),
-            Currency.wrap(address(WETH)),
-            hook,
-            poolFee,
-            initialSQRTPrice,
-            ""
-        );
-
-        hook.setAuthorizedPool(_key);
-        (key, ) = initPool(
-            Currency.wrap(address(USDC)),
-            Currency.wrap(address(WETH)),
-            hook,
-            poolFee,
-            initialSQRTPrice,
-            ""
-        );
-
-        hook.setLendingAdapter(address(lendingAdapter));
-        hook.setRebalanceAdapter(address(rebalanceAdapter));
-        assertEq(hook.tickLower(), 192230 + 3000);
-        assertEq(hook.tickUpper(), 192230 - 3000);
-        hook.setAuthorizedPool(key);
-        // MARK END
-
-        // This is needed in order to simulate proper accounting
-        deal(address(USDC), address(manager), 1000 ether);
-        deal(address(WETH), address(manager), 1000 ether);
-        vm.stopPrank();
-    }
-
-    function create_and_seed_morpho_markets() internal {
-        address oracle = 0x48F7E36EB6B826B2dF4B2E630B62Cd25e89E40e2;
-
-        modifyMockOracle(oracle, 4487851340816804029821232973); //4487 usdc for eth
-
-        borrowUSDCmId = create_morpho_market(
-            address(USDC),
-            address(WETH),
-            915000000000000000,
-            oracle
-        );
-
-        provideLiquidityToMorpho(borrowUSDCmId, 1000 ether); // Providing some ETH
-
-        depositUSDCmId = create_morpho_market(
-            address(USDC),
-            address(WETH),
-            945000000000000000,
-            oracle
-        );
-    }
-
-    function presetChainlinkOracles() internal {
-        vm.mockCall(
-            address(ALMBaseLib.CHAINLINK_7_DAYS_VOL),
-            abi.encodeWithSelector(
-                AggregatorV3Interface.latestRoundData.selector
-            ),
-            abi.encode(
-                18446744073709563265,
-                60444,
-                1725059436,
-                1725059436,
-                18446744073709563265
-            )
-        );
-
-        vm.mockCall(
-            address(ALMBaseLib.CHAINLINK_30_DAYS_VOL),
-            abi.encodeWithSelector(
-                AggregatorV3Interface.latestRoundData.selector
-            ),
-            abi.encode(
-                18446744073709563266,
-                86480,
-                1725059412,
-                1725059412,
-                18446744073709563266
-            )
-        );
+        hook.beforeSwap(address(0), key, IPoolManager.SwapParams(true, 0, 0), "");
     }
 }
