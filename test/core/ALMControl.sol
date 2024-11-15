@@ -101,6 +101,35 @@ contract ALMControl is BaseHook, ERC20 {
         }
     }
 
+    function withdraw(uint256 shares) external {
+        require(balanceOf(msg.sender) >= shares);
+
+        //TODO: better do some poke here
+        uint256 ratio = (shares * 1e18) / totalSupply();
+        console.log("ratio", ratio);
+
+        _burn(msg.sender, shares);
+
+        (uint128 totalLiquidity, , ) = getPositionInfo();
+
+        uint256 liquidityToBurn = (uint256(totalLiquidity) * (ratio)) / 1e18;
+        console.log("liquidity", liquidityToBurn);
+        console.log("totalLiquidity", totalLiquidity);
+
+        poolManager.unlock(
+            abi.encodeCall(
+                this.unlockModifyPosition,
+                (
+                    key,
+                    -int128(uint128(liquidityToBurn)),
+                    hook.tickUpper(),
+                    hook.tickLower(),
+                    msg.sender
+                )
+            )
+        );
+    }
+
     function sharePrice() public view returns (uint256) {
         if (totalSupply() == 0) return 0;
         return (TVL() * 1e18) / totalSupply();
@@ -190,13 +219,7 @@ contract ALMControl is BaseHook, ERC20 {
             uint128 liquidity,
             uint256 feeGrowthInside0LastX128,
             uint256 feeGrowthInside1LastX128
-        ) = poolManager.getPositionInfo(
-                key.toId(),
-                address(this),
-                hook.tickUpper(),
-                hook.tickLower(),
-                bytes32("")
-            );
+        ) = getPositionInfo();
 
         (uint160 sqrtPriceX96, ) = getTick();
 
@@ -221,6 +244,17 @@ contract ALMControl is BaseHook, ERC20 {
         );
         //TODO: check if this fee calculation is working good
         return (amount0 + owed0, amount1 + owed1);
+    }
+
+    function getPositionInfo() public view returns (uint128, uint256, uint256) {
+        return
+            poolManager.getPositionInfo(
+                key.toId(),
+                address(this),
+                hook.tickUpper(),
+                hook.tickLower(),
+                bytes32("")
+            );
     }
 
     function _calcCurrentPrice() public view returns (uint256) {

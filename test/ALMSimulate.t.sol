@@ -54,7 +54,7 @@ contract ALMSimulationTest is ALMTestBase {
     }
 
     uint256 maxDepositors = 3;
-    uint256 maxDeposits = 10;
+    uint256 maxDeposits = 0;
     uint256 numberOfSwaps = 10;
     uint256 expectedPoolPriceForConversion = 4500;
 
@@ -85,9 +85,7 @@ contract ALMSimulationTest is ALMTestBase {
                 // Now will adjust amount if it's USDC goes In
                 if ((zeroForOne && _in) || (!zeroForOne && !_in)) {
                     console.log("> randomAmount before", randomAmount);
-                    randomAmount =
-                        (randomAmount * expectedPoolPriceForConversion) /
-                        1e12;
+                    randomAmount = (randomAmount * expectedPoolPriceForConversion) / 1e12;
                 } else {
                     console.log("> randomAmount", randomAmount);
                 }
@@ -113,6 +111,8 @@ contract ALMSimulationTest is ALMTestBase {
             vm.roll(block.number + 1);
             vm.warp(block.timestamp + 12);
         }
+
+        withdraw(hook
     }
 
     function save_pool_state() internal {
@@ -182,16 +182,7 @@ contract ALMSimulationTest is ALMTestBase {
             }
         }
 
-        save_swap_data(
-            amount,
-            zeroForOne,
-            _in,
-            block.number,
-            delta0,
-            delta1,
-            delta0c,
-            delta1c
-        );
+        save_swap_data(amount, zeroForOne, _in, block.number, delta0, delta1, delta0c, delta1c);
     }
 
     function save_swap_data(
@@ -234,8 +225,8 @@ contract ALMSimulationTest is ALMTestBase {
         console.log(">> do deposit:", actor, amount);
         vm.startPrank(actor);
 
-        uint256 tokeWETHcontrol;
-        uint256 tokeUSDCcontrol;
+        uint256 balanceWETHcontrol;
+        uint256 balanceUSDCcontrol;
         uint256 delSharesControl;
 
         {
@@ -243,8 +234,8 @@ contract ALMSimulationTest is ALMTestBase {
             deal(address(USDC), actor, amount / 1e8); // should be 1e12 but gor 4 zeros to be sure
             delSharesControl = hookControl.balanceOf(actor);
             hookControl.deposit(amount);
-            tokeWETHcontrol = amount - WETH.balanceOf(actor);
-            tokeUSDCcontrol = amount / 1e8 - USDC.balanceOf(actor);
+            balanceWETHcontrol = amount - WETH.balanceOf(actor);
+            balanceUSDCcontrol = amount / 1e8 - USDC.balanceOf(actor);
 
             // ** Clear up account
             WETH.transfer(zero.addr, WETH.balanceOf(actor));
@@ -253,13 +244,13 @@ contract ALMSimulationTest is ALMTestBase {
             delSharesControl = hookControl.balanceOf(actor) - delSharesControl;
         }
 
-        uint256 tokeWETH;
+        uint256 balanceWETH;
         uint256 delShares;
         {
             deal(address(WETH), actor, amount);
             delShares = hook.balanceOf(actor);
             hook.deposit(actor, amount);
-            tokeWETH = amount - WETH.balanceOf(actor);
+            balanceWETH = amount - WETH.balanceOf(actor);
 
             // ** Clear up account
             WETH.transfer(zero.addr, WETH.balanceOf(actor));
@@ -271,9 +262,9 @@ contract ALMSimulationTest is ALMTestBase {
         save_deposit_data(
             amount,
             actor,
-            tokeWETH,
-            tokeWETHcontrol,
-            tokeUSDCcontrol,
+            balanceWETH,
+            balanceWETHcontrol,
+            balanceUSDCcontrol,
             delShares,
             delSharesControl
         );
@@ -283,9 +274,9 @@ contract ALMSimulationTest is ALMTestBase {
     function save_deposit_data(
         uint256 amount,
         address actor,
-        uint256 tokeWETH,
-        uint256 tokeWETHcontrol,
-        uint256 tokeUSDCcontrol,
+        uint256 balanceWETH,
+        uint256 balanceWETHcontrol,
+        uint256 balanceUSDCcontrol,
         uint256 delShares,
         uint256 delSharesControl
     ) internal {
@@ -293,9 +284,9 @@ contract ALMSimulationTest is ALMTestBase {
             amount,
             address(actor),
             block.number,
-            tokeWETH,
-            tokeWETHcontrol,
-            tokeUSDCcontrol,
+            balanceWETH,
+            balanceWETHcontrol,
+            balanceUSDCcontrol,
             delShares,
             delSharesControl
         );
@@ -308,11 +299,92 @@ contract ALMSimulationTest is ALMTestBase {
         vm.ffi(inputs);
     }
 
+    function withdraw(uint256 shares1, uint256 shares2, address actor) internal {
+        console.log(">> do withdraw:", actor, shares1, shares2);
+        vm.startPrank(actor);
+
+        uint256 balanceWETHcontrol;
+        uint256 balanceUSDCcontrol;
+        uint256 delSharesControl;
+
+        {
+            delSharesControl = hookControl.balanceOf(actor);
+            hookControl.withdraw(shares2);
+            balanceWETHcontrol = WETH.balanceOf(actor);
+            balanceUSDCcontrol = USDC.balanceOf(actor);
+
+            // ** Clear up account
+            WETH.transfer(zero.addr, WETH.balanceOf(actor));
+            USDC.transfer(zero.addr, USDC.balanceOf(actor));
+
+            delSharesControl = delSharesControl - hookControl.balanceOf(actor);
+        }
+
+        uint256 balanceWETH;
+        uint256 balanceUSDC;
+        uint256 delShares;
+        {
+            delShares = hook.balanceOf(actor);
+            hook.withdraw(actor, shares1);
+            balanceWETH = WETH.balanceOf(actor);
+            balanceUSDC = USDC.balanceOf(actor);
+
+            // ** Clear up account
+            WETH.transfer(zero.addr, WETH.balanceOf(actor));
+            USDC.transfer(zero.addr, USDC.balanceOf(actor));
+
+            delShares = delShares - hook.balanceOf(actor);
+        }
+
+        save_withdraw_data(
+            shares1,
+            shares2,,
+            actor,
+            balanceWETH,
+            balanceUSDC,
+            balanceWETHcontrol,
+            balanceUSDCcontrol,
+            delShares,
+            delSharesControl
+        );
+        vm.stopPrank();
+    }
+
+    function save_withdraw_data(
+        uint256 shares1,
+        uint256 shares2,
+        address actor,
+        uint256 balanceWETH,
+        uint256 balanceUSDC,
+        uint256 balanceWETHcontrol,
+        uint256 balanceUSDCcontrol,
+        uint256 delShares,
+        uint256 delSharesControl
+    ) internal {
+        bytes memory packedData = abi.encodePacked(
+            shares1,
+            shares2,
+            address(actor),
+            block.number,
+            balanceWETH,
+            balanceUSDC,
+            balanceWETHcontrol,
+            balanceUSDCcontrol,
+            delShares,
+            delSharesControl
+        );
+        string memory packedHexString = toHexString(packedData);
+
+        string[] memory inputs = new string[](3);
+        inputs[0] = "node";
+        inputs[1] = "test/snapshots/logWithdraws.js";
+        inputs[2] = packedHexString;
+        vm.ffi(inputs);
+    }
+
     // -- Simulation helpers --
 
-    function toHexString(
-        bytes memory input
-    ) public pure returns (string memory) {
+    function toHexString(bytes memory input) public pure returns (string memory) {
         require(input.length < type(uint256).max / 2 - 1);
         bytes16 symbols = "0123456789abcdef";
         bytes memory hex_buffer = new bytes(2 * input.length + 2);
@@ -437,11 +509,7 @@ contract ALMSimulationTest is ALMTestBase {
 
         // MARK: Usual UniV4 hook deployment process
         address hookAddress = address(uint160(Hooks.AFTER_INITIALIZE_FLAG));
-        deployCodeTo(
-            "ALMControl.sol",
-            abi.encode(manager, address(hook)),
-            hookAddress
-        );
+        deployCodeTo("ALMControl.sol", abi.encode(manager, address(hook)), hookAddress);
         hookControl = ALMControl(hookAddress);
         vm.label(address(hookControl), "hookControl");
 
@@ -464,50 +532,24 @@ contract ALMSimulationTest is ALMTestBase {
 
         modifyMockOracle(oracle, 4487851340816804029821232973); //4487 usdc for eth
 
-        borrowUSDCmId = create_morpho_market(
-            address(USDC),
-            address(WETH),
-            915000000000000000,
-            oracle
-        );
+        borrowUSDCmId = create_morpho_market(address(USDC), address(WETH), 915000000000000000, oracle);
 
         provideLiquidityToMorpho(borrowUSDCmId, 1000 ether); // Providing some ETH
 
-        depositUSDCmId = create_morpho_market(
-            address(USDC),
-            address(WETH),
-            945000000000000000,
-            oracle
-        );
+        depositUSDCmId = create_morpho_market(address(USDC), address(WETH), 945000000000000000, oracle);
     }
 
     function presetChainlinkOracles() internal {
         vm.mockCall(
             address(ALMBaseLib.CHAINLINK_7_DAYS_VOL),
-            abi.encodeWithSelector(
-                AggregatorV3Interface.latestRoundData.selector
-            ),
-            abi.encode(
-                18446744073709563265,
-                60444,
-                1725059436,
-                1725059436,
-                18446744073709563265
-            )
+            abi.encodeWithSelector(AggregatorV3Interface.latestRoundData.selector),
+            abi.encode(18446744073709563265, 60444, 1725059436, 1725059436, 18446744073709563265)
         );
 
         vm.mockCall(
             address(ALMBaseLib.CHAINLINK_30_DAYS_VOL),
-            abi.encodeWithSelector(
-                AggregatorV3Interface.latestRoundData.selector
-            ),
-            abi.encode(
-                18446744073709563266,
-                86480,
-                1725059412,
-                1725059412,
-                18446744073709563266
-            )
+            abi.encodeWithSelector(AggregatorV3Interface.latestRoundData.selector),
+            abi.encode(18446744073709563266, 86480, 1725059412, 1725059412, 18446744073709563266)
         );
     }
 }

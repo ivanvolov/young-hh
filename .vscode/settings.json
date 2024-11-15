@@ -8,14 +8,14 @@
     // "**/cspell.dict": true,
     "**/.forge-snapshots": true,
     // "**/lib": true,
-    "**/out": true,
+    // "**/out": true,
     "**/.github": true,
     "**/.git": true
   },
   "search.exclude": {
     "**/node_modules": true,
     "**/out": true,
-    "**/.git": true,
+    "**/.git": true
     // "**/lib": true
   },
   "git.ignoredRepositories": [
