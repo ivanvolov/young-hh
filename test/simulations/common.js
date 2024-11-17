@@ -41,7 +41,7 @@ function decodeDepositData(buffer, types) {
                 data.push(decodeInt256(buffer, offset));
                 offset += 32;
                 break;
-            case "boolean":
+            case "bool":
                 data.push(buffer.readUInt8(offset) === 1);
                 offset += 1;
                 break;

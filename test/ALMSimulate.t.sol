@@ -106,7 +106,7 @@ contract ALMSimulationTest is ALMTestSimBase {
             vm.warp(block.timestamp + 12);
         }
 
-        // withdraw(hook
+        withdraw(hook.balanceOf(alice.addr), hookControl.balanceOf(alice.addr), alice.addr);
     }
 
     function swap(uint256 amount, bool zeroForOne, bool _in) internal {
@@ -211,9 +211,9 @@ contract ALMSimulationTest is ALMTestSimBase {
         uint256 balanceWETH;
         uint256 balanceUSDC;
         {
-            uint256 sharesBefore = hookControl.balanceOf(actor);
+            uint256 sharesBefore = hook.balanceOf(actor);
             hook.withdraw(actor, shares1);
-            assertEq(sharesBefore - hookControl.balanceOf(actor), shares1);
+            assertEq(sharesBefore - hook.balanceOf(actor), shares1);
 
             balanceWETH = WETH.balanceOf(actor);
             balanceUSDC = USDC.balanceOf(actor);

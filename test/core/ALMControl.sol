@@ -35,19 +35,11 @@ contract ALMControl is BaseHook, ERC20 {
 
     PoolKey key;
 
-    constructor(
-        IPoolManager _manager,
-        address _hook
-    ) BaseHook(_manager) ERC20("ALMControl", "hhALMControl") {
+    constructor(IPoolManager _manager, address _hook) BaseHook(_manager) ERC20("ALMControl", "hhALMControl") {
         hook = IALM(_hook);
     }
 
-    function getHookPermissions()
-        public
-        pure
-        override
-        returns (Hooks.Permissions memory)
-    {
+    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return
             Hooks.Permissions({
                 beforeInitialize: false,
@@ -83,13 +75,7 @@ contract ALMControl is BaseHook, ERC20 {
         poolManager.unlock(
             abi.encodeCall(
                 this.unlockModifyPosition,
-                (
-                    key,
-                    int128(liquidity),
-                    hook.tickUpper(),
-                    hook.tickLower(),
-                    msg.sender
-                )
+                (key, int128(liquidity), hook.tickUpper(), hook.tickLower(), msg.sender)
             )
         );
 
@@ -119,13 +105,7 @@ contract ALMControl is BaseHook, ERC20 {
         poolManager.unlock(
             abi.encodeCall(
                 this.unlockModifyPosition,
-                (
-                    key,
-                    -int128(uint128(liquidityToBurn)),
-                    hook.tickUpper(),
-                    hook.tickLower(),
-                    msg.sender
-                )
+                (key, -int128(uint128(liquidityToBurn)), hook.tickUpper(), hook.tickLower(), msg.sender)
             )
         );
     }
@@ -135,11 +115,7 @@ contract ALMControl is BaseHook, ERC20 {
         return (TVL() * 1e18) / totalSupply();
     }
 
-    function getTick()
-        public
-        view
-        returns (uint160 sqrtPriceX96, int24 currentTick)
-    {
+    function getTick() public view returns (uint160 sqrtPriceX96, int24 currentTick) {
         (sqrtPriceX96, currentTick, , ) = poolManager.getSlot0(key.toId());
     }
 
@@ -165,39 +141,19 @@ contract ALMControl is BaseHook, ERC20 {
         );
 
         if (delta.amount0() < 0) {
-            key.currency0.settle(
-                poolManager,
-                sender,
-                uint256(uint128(-delta.amount0())),
-                false
-            );
+            key.currency0.settle(poolManager, sender, uint256(uint128(-delta.amount0())), false);
         }
 
         if (delta.amount0() > 0) {
-            key.currency0.take(
-                poolManager,
-                address(this),
-                uint256(uint128(delta.amount0())),
-                false
-            );
+            key.currency0.take(poolManager, sender, uint256(uint128(delta.amount0())), false);
         }
 
         if (delta.amount1() < 0) {
-            key.currency1.settle(
-                poolManager,
-                sender,
-                uint256(uint128(-delta.amount1())),
-                false
-            );
+            key.currency1.settle(poolManager, sender, uint256(uint128(-delta.amount1())), false);
         }
 
         if (delta.amount1() > 0) {
-            key.currency1.take(
-                poolManager,
-                address(this),
-                uint256(uint128(delta.amount1())),
-                false
-            );
+            key.currency1.take(poolManager, sender, uint256(uint128(delta.amount1())), false);
         }
         return "";
     }
@@ -210,51 +166,27 @@ contract ALMControl is BaseHook, ERC20 {
         return amount1 + (amount0 * 1e30) / price;
     }
 
-    function getUniswapPositionAmounts()
-        public
-        view
-        returns (uint256, uint256)
-    {
-        (
-            uint128 liquidity,
-            uint256 feeGrowthInside0LastX128,
-            uint256 feeGrowthInside1LastX128
-        ) = getPositionInfo();
+    function getUniswapPositionAmounts() public view returns (uint256, uint256) {
+        (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = getPositionInfo();
 
         (uint160 sqrtPriceX96, ) = getTick();
 
-        (uint256 amount0, uint256 amount1) = LiquidityAmounts
-            .getAmountsForLiquidity(
-                sqrtPriceX96,
-                TickMath.getSqrtPriceAtTick(hook.tickUpper()),
-                TickMath.getSqrtPriceAtTick(hook.tickLower()),
-                liquidity
-            );
-
-        uint256 owed0 = FullMath.mulDiv(
-            feeGrowthInside0LastX128,
-            liquidity,
-            FixedPoint128.Q128
+        (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(hook.tickUpper()),
+            TickMath.getSqrtPriceAtTick(hook.tickLower()),
+            liquidity
         );
 
-        uint256 owed1 = FullMath.mulDiv(
-            feeGrowthInside1LastX128,
-            liquidity,
-            FixedPoint128.Q128
-        );
+        uint256 owed0 = FullMath.mulDiv(feeGrowthInside0LastX128, liquidity, FixedPoint128.Q128);
+
+        uint256 owed1 = FullMath.mulDiv(feeGrowthInside1LastX128, liquidity, FixedPoint128.Q128);
         //TODO: check if this fee calculation is working good
         return (amount0 + owed0, amount1 + owed1);
     }
 
     function getPositionInfo() public view returns (uint128, uint256, uint256) {
-        return
-            poolManager.getPositionInfo(
-                key.toId(),
-                address(this),
-                hook.tickUpper(),
-                hook.tickLower(),
-                bytes32("")
-            );
+        return poolManager.getPositionInfo(key.toId(), address(this), hook.tickUpper(), hook.tickLower(), bytes32(""));
     }
 
     function _calcCurrentPrice() public view returns (uint256) {

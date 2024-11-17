@@ -80,7 +80,7 @@ abstract contract ALMTestSimBase is ALMTestBase {
 
         string[] memory inputs = new string[](3);
         inputs[0] = "node";
-        inputs[1] = "test/snapshots/logState.js";
+        inputs[1] = "test/simulations/logState.js";
         inputs[2] = packedHexString;
         vm.ffi(inputs);
     }
@@ -108,7 +108,7 @@ abstract contract ALMTestSimBase is ALMTestBase {
 
         string[] memory inputs = new string[](3);
         inputs[0] = "node";
-        inputs[1] = "test/snapshots/logSwap.js";
+        inputs[1] = "test/simulations/logSwap.js";
         inputs[2] = packedHexString;
         vm.ffi(inputs);
     }
@@ -116,7 +116,7 @@ abstract contract ALMTestSimBase is ALMTestBase {
     function clear_snapshots() internal {
         string[] memory inputs = new string[](2);
         inputs[0] = "node";
-        inputs[1] = "test/snapshots/clear.js";
+        inputs[1] = "test/simulations/clear.js";
         vm.ffi(inputs);
     }
 
@@ -143,7 +143,7 @@ abstract contract ALMTestSimBase is ALMTestBase {
 
         string[] memory inputs = new string[](3);
         inputs[0] = "node";
-        inputs[1] = "test/snapshots/logDeposits.js";
+        inputs[1] = "test/simulations/logDeposits.js";
         inputs[2] = packedHexString;
         vm.ffi(inputs);
     }
@@ -171,7 +171,7 @@ abstract contract ALMTestSimBase is ALMTestBase {
 
         string[] memory inputs = new string[](3);
         inputs[0] = "node";
-        inputs[1] = "test/snapshots/logWithdraws.js";
+        inputs[1] = "test/simulations/logWithdraws.js";
         inputs[2] = packedHexString;
         vm.ffi(inputs);
     }
@@ -179,7 +179,7 @@ abstract contract ALMTestSimBase is ALMTestBase {
     function random(uint256 randomCap) public returns (uint) {
         string[] memory inputs = new string[](3);
         inputs[0] = "node";
-        inputs[1] = "test/snapshots/random.js";
+        inputs[1] = "test/simulations/random.js";
         inputs[2] = toHexString(abi.encodePacked(randomCap));
 
         bytes memory result = vm.ffi(inputs);

@@ -1,4 +1,5 @@
 const { utils } = require("ethers");
+const { decodeHexString } = require("./common");
 
 const packedHexString = process.argv[2];
 const [randomCap] = decodeHexString(packedHexString, ["uint256"]);

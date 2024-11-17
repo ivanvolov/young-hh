@@ -16,4 +16,4 @@ docs/
 .DS_Store
 PLAN.md
 *.csv
-test/snapshots/*.html
+test/**/*.html
