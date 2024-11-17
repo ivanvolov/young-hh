@@ -135,6 +135,8 @@ contract ALMSimulationTest is ALMTestSimBase {
             }
         }
 
+        console.logInt(delta0);
+        console.logInt(delta0c);
         save_swap_data(amount, zeroForOne, _in, delta0, delta1, delta0c, delta1c);
     }
 

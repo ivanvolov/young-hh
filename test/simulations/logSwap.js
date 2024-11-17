@@ -6,11 +6,10 @@ const args = decodeHexString(packedHexString, [
     "bool",
     "bool",
     "uint256",
-
-    "uint256",
-    "uint256",
-    "uint256",
-    "uint256",
+    "int256",
+    "int256",
+    "int256",
+    "int256",
 ]);
 
 saveToCSV("swaps", `${args.join(",")}\n`);
