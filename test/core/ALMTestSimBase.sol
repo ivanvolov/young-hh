@@ -16,10 +16,15 @@ abstract contract ALMTestSimBase is ALMTestBase {
     ALMControl hookControl;
     PoolKey keyControl;
 
-    uint256 maxDepositors = 3;
-    uint256 maxDeposits = 0;
-    uint256 numberOfSwaps = 10;
-    uint256 expectedPoolPriceForConversion = 4500;
+    uint256 depositProbabilityPerBlock;
+    uint256 maxDepositors;
+    uint256 maxDeposits;
+    uint256 depositorReuseProbability;
+
+    uint256 withdrawProbabilityPerBlock;
+    uint256 maxWithdraws;
+    uint256 numberOfSwaps;
+    uint256 expectedPoolPriceForConversion;
 
     function init_control_hook() internal {
         vm.startPrank(deployer.addr);
@@ -207,15 +212,25 @@ abstract contract ALMTestSimBase is ALMTestBase {
 
     uint256 lastGeneratedAddress = 0;
 
-    function getRandomAddress() public returns (address) {
-        uint256 offset = 100;
-        uint256 _random = random(maxDepositors);
-        if (_random > lastGeneratedAddress) {
+    uint256 offset = 100;
+
+    function chooseDepositor() public returns (address) {
+        uint256 _random = random(100);
+        if (_random <= depositorReuseProbability && lastGeneratedAddress > 0) {
+            // reuse existing address
+            return getDepositorToReuse();
+        } else {
+            // generate new address
             lastGeneratedAddress = lastGeneratedAddress + 1;
-            address newActor = generateAddress(lastGeneratedAddress + offset);
-            approve_actor(newActor);
-            return newActor;
-        } else return generateAddress(_random + offset);
+            address actor = addressFromSeed(offset + lastGeneratedAddress);
+            approve_actor(actor);
+            return actor;
+        }
+    }
+
+    function getDepositorToReuse() public returns (address) {
+        if (lastGeneratedAddress == 0) return address(0); // This means no addresses were generated yet
+        return addressFromSeed(offset + random(lastGeneratedAddress));
     }
 
     function approve_actor(address actor) internal {
@@ -228,7 +243,7 @@ abstract contract ALMTestSimBase is ALMTestBase {
         vm.stopPrank();
     }
 
-    function generateAddress(uint256 seed) public pure returns (address) {
+    function addressFromSeed(uint256 seed) public pure returns (address) {
         return address(uint160(uint256(keccak256(abi.encodePacked(seed)))));
     }
 }
