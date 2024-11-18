@@ -47,19 +47,39 @@ contract ALMSimulationTest is ALMTestSimBase {
         deal(address(WETH), address(swapper.addr), 100_000 * 1e18);
     }
 
+    function test_quick_test() public {
+        resetGenerator();
+
+        maxUniqueDepositors = 2;
+        console.log(chooseDepositor());
+        console.log(chooseDepositor());
+        console.log(chooseDepositor());
+        console.log(chooseDepositor());
+        console.log(chooseDepositor());
+        console.log("To reuse");
+        console.log(getDepositorToReuse());
+        console.log(getDepositorToReuse());
+        console.log(getDepositorToReuse());
+        console.log(getDepositorToReuse());
+        console.log(getDepositorToReuse());
+        console.log(getDepositorToReuse());
+    }
+
     function test_simulation_start() public {
-        depositProbabilityPerBlock = 20; // Probability of deposit per block
-        maxDeposits = 20; // The maximum number of deposits. Set to max(uint256) to disable
+        depositProbabilityPerBlock = 10; // Probability of deposit per block
+        maxDeposits = 10; // The maximum number of deposits. Set to max(uint256) to disable
 
         withdrawProbabilityPerBlock = 7; // Probability of withdraw per block
         maxWithdraws = 3; // The maximum number of withdraws. Set to max(uint256) to disable
 
         numberOfSwaps = 100; // Number of blocks with swaps
 
-        maxDepositors = 3; // The maximum number of depositors
+        maxUniqueDepositors = 3; // The maximum number of depositors
         depositorReuseProbability = 50; // 50 % prob what the depositor will be reused rather then creating new one
 
         expectedPoolPriceForConversion = 4500; // USDC-WETH price (used for In/Out swaps). TODO it more elegantly with quoter.
+
+        resetGenerator();
         uint256 depositsRemained = maxDeposits;
         uint256 withdrawsRemained = maxWithdraws;
         console.log("Simulation started");
@@ -129,6 +149,9 @@ contract ALMSimulationTest is ALMTestSimBase {
             vm.warp(block.timestamp + 12);
         }
 
+        for (uint id = 1; id <= lastGeneratedAddressId; id++) {
+            withdraw(100, 100, getDepositorById(id));
+        }
         withdraw(100, 100, alice.addr);
     }
 
@@ -212,10 +235,8 @@ contract ALMSimulationTest is ALMTestSimBase {
     }
 
     function withdraw(uint256 sharesPercent1, uint256 sharesPercent2, address actor) internal {
-        uint256 b1 = hook.balanceOf(alice.addr);
-        uint256 b2 = hookControl.balanceOf(alice.addr);
-        uint256 shares1 = (b1 * sharesPercent1 * 1e16) / 1e18;
-        uint256 shares2 = (b2 * sharesPercent2 * 1e16) / 1e18;
+        uint256 shares1 = (hook.balanceOf(actor) * sharesPercent1 * 1e16) / 1e18;
+        uint256 shares2 = (hookControl.balanceOf(actor) * sharesPercent2 * 1e16) / 1e18;
         console.log(">> do withdraw:", actor, shares1, shares2);
 
         vm.startPrank(actor);

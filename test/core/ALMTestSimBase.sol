@@ -17,7 +17,7 @@ abstract contract ALMTestSimBase is ALMTestBase {
     PoolKey keyControl;
 
     uint256 depositProbabilityPerBlock;
-    uint256 maxDepositors;
+    uint256 maxUniqueDepositors;
     uint256 maxDeposits;
     uint256 depositorReuseProbability;
 
@@ -210,27 +210,37 @@ abstract contract ALMTestSimBase is ALMTestBase {
         return string(hex_buffer);
     }
 
-    uint256 lastGeneratedAddress = 0;
+    uint256 lastGeneratedAddressId;
 
     uint256 offset = 100;
 
+    function resetGenerator() public {
+        lastGeneratedAddressId = 0;
+    }
+
     function chooseDepositor() public returns (address) {
+        if (maxUniqueDepositors == lastGeneratedAddressId) return getDepositorToReuse();
+
         uint256 _random = random(100);
-        if (_random <= depositorReuseProbability && lastGeneratedAddress > 0) {
+        if (_random <= depositorReuseProbability && lastGeneratedAddressId > 0) {
             // reuse existing address
             return getDepositorToReuse();
         } else {
             // generate new address
-            lastGeneratedAddress = lastGeneratedAddress + 1;
-            address actor = addressFromSeed(offset + lastGeneratedAddress);
+            lastGeneratedAddressId = lastGeneratedAddressId + 1;
+            address actor = getDepositorById(lastGeneratedAddressId);
             approve_actor(actor);
             return actor;
         }
     }
 
     function getDepositorToReuse() public returns (address) {
-        if (lastGeneratedAddress == 0) return address(0); // This means no addresses were generated yet
-        return addressFromSeed(offset + random(lastGeneratedAddress));
+        if (lastGeneratedAddressId == 0) return address(0); // This means no addresses were generated yet
+        return getDepositorById(random(lastGeneratedAddressId));
+    }
+
+    function getDepositorById(uint256 id) public view returns (address) {
+        return addressFromSeed(offset + id);
     }
 
     function approve_actor(address actor) internal {

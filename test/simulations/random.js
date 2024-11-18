@@ -1,10 +1,10 @@
 const { utils } = require("ethers");
-const { decodeHexString } = require("./common");
+const { decodeHexString, randomNumber } = require("./common");
 
 const packedHexString = process.argv[2];
 const [randomCap] = decodeHexString(packedHexString, ["uint256"]);
 
-const randomNumber = Math.floor(Math.random() * randomCap) + 1;
+const _randomNumber = randomNumber(randomCap);
 
 // ** This is for testing only
 // const csvFilePath = "test/snapshots/temp.txt";
@@ -12,5 +12,5 @@ const randomNumber = Math.floor(Math.random() * randomCap) + 1;
 // fs.appendFileSync(csvFilePath, csvData, "utf8");
 // console.log(randomNumber);
 
-const resultBuffer = utils.defaultAbiCoder.encode(["uint256"], [randomNumber]);
+const resultBuffer = utils.defaultAbiCoder.encode(["uint256"], [_randomNumber]);
 console.log(resultBuffer.toString("hex"));

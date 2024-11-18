@@ -3,17 +3,17 @@ title: "HH Simulation general charts"
 output: html_notebook
 ---
 
-```{r warnigns=false}
-library(ggplot2)
-library(tidyverse)
-library(DT)
-library(plotly)
-library(gridExtra)
-library(knitr)
-library(dplyr)
+```{r warnigns=FALSE}
+suppressWarnings(library(ggplot2))
+suppressWarnings(library(tidyverse))
+suppressWarnings(library(DT))
+suppressWarnings(library(plotly))
+suppressWarnings(library(gridExtra))
+suppressWarnings(library(knitr))
+suppressWarnings(library(dplyr))
 ```
 
-```{r warnigns=false}
+```{r warnigns=FALSE}
 rm(list = ls())
 deposits <- read.csv("../simulations/out/deposits.csv", colClasses = c("actor" = "character"))
 withdraws <- read.csv("../simulations/out/withdraws.csv", colClasses = c("actor" = "character"))
@@ -99,7 +99,7 @@ combined_plot
 
 ## Swap deltas with control comparison
 
-```{r}
+```{r skip=True}
 if (nrow(swaps) > 0) {
 # Create the delta0 and delta0c bar chart
 plot1 <- ggplot(swaps) +
@@ -240,10 +240,10 @@ combined_plot <- plot1 %>%
 combined_plot
 ```
 
-```{r}
+```{r skip=True}
 deposits_m <- deposits[, c("dWETH", "dWETHc", "dUSDCc", "bN", "actor", "dSH", "dSHc")] %>%
   arrange(bN) %>%
-  mutate(actor = paste0("actor", as.integer(factor(actor))))
+  mutate(actor = paste0("actor", match(actor, unique(actor))))
 
 deposits_m$dWETH = as.numeric(deposits_m$dWETH) / 1e18
 deposits_m$dWETHc = as.numeric(deposits_m$dWETHc) / 1e18
@@ -252,14 +252,14 @@ deposits_m$dUSDCc = as.numeric(deposits_m$dUSDCc) / 1e6
 deposits_m$dSH = as.numeric(deposits_m$dSH) / 1e18
 deposits_m$dSHc = as.numeric(deposits_m$dSHc) / 1e18
 
-datatable(deposits_m, options = list(pageLength = 100), caption = "Deposits Table") %>%
-  formatRound(columns = c("dWETH", "dWETHc"), digits = 2) %>% formatRound(columns = c("dUSDCc", "dSH", "dSHc"), digits = 0)
+#datatable(deposits_m, options = list(pageLength = 100), caption = "Deposits Table") %>%
+#  formatRound(columns = c("dWETH", "dWETHc"), digits = 2) %>% formatRound(columns = c("dUSDCc", "dSH", "dSHc"), digits = 0)
 ```
 
-```{r}
+```{r skip=True}
 withdraws_m <- withdraws[, c("dWETH", "dUSDC", "dWETHc", "dUSDCc", "bN", "actor", "shares1", "shares2")] %>%
   arrange(bN) %>%
-  mutate(actor = paste0("actor", as.integer(factor(actor))))
+  mutate(actor = paste0("actor", match(actor, unique(actor))))
 
 withdraws_m$dWETH = as.numeric(withdraws_m$dWETH) / 1e18
 withdraws_m$dUSDC = as.numeric(withdraws_m$dUSDC) / 1e6
@@ -269,6 +269,39 @@ withdraws_m$dUSDCc = as.numeric(withdraws_m$dUSDCc) / 1e6
 withdraws_m$shares1 = as.numeric(withdraws_m$shares1) / 1e18
 withdraws_m$shares2 = as.numeric(withdraws_m$shares2) / 1e18
 
-datatable(withdraws_m, options = list(pageLength = 100), caption = "Deposits Table") %>%
-  formatRound(columns = c("dWETH", "dWETHc"), digits = 2) %>% formatRound(columns = c("dUSDC", "dUSDCc", "shares1", "shares2"), digits = 0)
+#datatable(withdraws_m, options = list(pageLength = 100), caption = "Deposits Table") %>%
+#  formatRound(columns = c("dWETH", "dWETHc"), digits = 2) %>% formatRound(columns = c("dUSDC", "dUSDCc", "shares1", "shares2"), digits = 0)
 ```
+```{r}
+
+deposits_m <- deposits[, c("dWETH", "dWETHc", "dUSDCc", "bN", "actor", "dSH", "dSHc")]
+deposits_m$dWETH = as.numeric(deposits_m$dWETH) / 1e18
+deposits_m$dWETHc = as.numeric(deposits_m$dWETHc) / 1e18
+deposits_m$dUSDCc = as.numeric(deposits_m$dUSDCc) / 1e6
+deposits_m$dSH = as.numeric(deposits_m$dSH) / 1e18
+deposits_m$dSHc = as.numeric(deposits_m$dSHc) / 1e18
+
+withdraws_m <- withdraws[, c("dWETH", "dUSDC", "dWETHc", "dUSDCc", "bN", "actor", "shares1", "shares2")]
+withdraws_m$dWETH = as.numeric(withdraws_m$dWETH) / 1e18
+withdraws_m$dUSDC = as.numeric(withdraws_m$dUSDC) / 1e6
+withdraws_m$dWETHc = as.numeric(withdraws_m$dWETHc) / 1e18
+withdraws_m$dUSDCc = as.numeric(withdraws_m$dUSDCc) / 1e6
+withdraws_m$dSH = as.numeric(withdraws_m$shares1) / 1e18
+withdraws_m$dSHc = as.numeric(withdraws_m$shares2) / 1e18
+
+withdraws_m <- withdraws_m %>%
+  mutate(type = "Withdraw")
+deposits_m <- deposits_m %>%
+  mutate(type = "Deposit")
+deposits_m <- deposits_m %>% mutate(dUSDC = 0)
+
+merged_table <- bind_rows(withdraws_m, deposits_m) %>%
+  arrange(bN) %>%
+  mutate(actor = paste0("actor", match(actor, unique(actor)))) %>%
+  select(-shares1, -shares2)
+
+datatable(merged_table, options = list(pageLength = 100), caption = "Actor operations") %>%
+  formatRound(columns = c("dWETH", "dWETHc", "dSH", "dSHc"), digits = 2) %>%
+  formatRound(columns = c("dUSDC", "dUSDCc"), digits = 0)
+```
+

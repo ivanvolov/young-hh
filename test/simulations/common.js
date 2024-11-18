@@ -82,7 +82,10 @@ function prepareCsvFile(name, headerRow) {
     console.log(`${filePath} prepared.`);
 }
 
+const randomNumber = (randomCap) => Math.floor(Math.random() * randomCap) + 1;
+
 module.exports = {
+    randomNumber,
     saveToCSV,
     decodeHexString,
     prepareCsvFile,
