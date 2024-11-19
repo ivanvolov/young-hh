@@ -65,7 +65,7 @@ contract ALMSimulationTest is ALMTestSimBase {
         console.log(getDepositorToReuse());
     }
 
-    function test_simulation_start() public {
+    function test_simulation() public {
         depositProbabilityPerBlock = 10; // Probability of deposit per block
         maxDeposits = 10; // The maximum number of deposits. Set to max(uint256) to disable
 
@@ -91,7 +91,6 @@ contract ALMSimulationTest is ALMTestSimBase {
         // ** First deposit to allow swapping
         approve_actor(alice.addr);
         deposit(1000 ether, alice.addr);
-
         save_pool_state();
 
         vm.roll(block.number + 1);
@@ -113,9 +112,8 @@ contract ALMSimulationTest is ALMTestSimBase {
                 }
 
                 swap(randomAmount, zeroForOne, _in);
+                save_pool_state();
             }
-
-            save_pool_state();
 
             // ** Do random deposits
             if (depositsRemained > 0) {
@@ -151,12 +149,74 @@ contract ALMSimulationTest is ALMTestSimBase {
 
         for (uint id = 1; id <= lastGeneratedAddressId; id++) {
             withdraw(100, 100, getDepositorById(id));
+            save_pool_state();
         }
         withdraw(100, 100, alice.addr);
+        save_pool_state();
+    }
+
+    function test_rebalance_simulation() public {
+        vm.startPrank(swapper.addr);
+        USDC.approve(address(hookControl), type(uint256).max);
+        WETH.approve(address(hookControl), type(uint256).max);
+        vm.stopPrank();
+
+        numberOfSwaps = 100; // Number of blocks with swaps
+
+        resetGenerator();
+        console.log("Simulation started");
+        console.log(block.timestamp);
+        console.log(block.number);
+
+        uint256 randomAmount;
+
+        // ** First deposit to allow swapping
+        approve_actor(alice.addr);
+        deposit(1000 ether, alice.addr);
+        save_pool_state();
+
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 12);
+
+        for (uint i = 0; i < numberOfSwaps; i++) {
+            // **  Always do swaps
+            {
+                randomAmount = random(30) * 1e18;
+                bool zeroForOne = (random(3) == 1); // here we set the trend
+
+                swap(randomAmount, zeroForOne, !zeroForOne);
+                save_pool_state();
+            }
+
+            // ** Always try to do rebalance
+            try_rebalance();
+
+            // ** Roll block after each iteration
+            vm.roll(block.number + 1);
+            vm.warp(block.timestamp + 12);
+        }
+
+        withdraw(100, 100, alice.addr);
+        save_pool_state();
+    }
+
+    function try_rebalance() internal {
+        (bool isRebalance, int24 delta) = rebalanceAdapter.isPriceRebalanceNeeded();
+        console.log("isRebalance", isRebalance);
+        // console.log(delta);
+        // console.log(rebalanceAdapter.tickDeltaThreshold());
+        if (isRebalance) {
+            // console.log("doing rebalance");
+            vm.prank(rebalanceAdapter.owner());
+            rebalanceAdapter.rebalance();
+
+            vm.prank(swapper.addr);
+            hookControl.rebalance();
+        }
     }
 
     function swap(uint256 amount, bool zeroForOne, bool _in) internal {
-        console.log(">> do swap", amount, zeroForOne, _in);
+        // console.log(">> do swap", amount, zeroForOne, _in);
         int256 delta0;
         int256 delta1;
         int256 delta0c;

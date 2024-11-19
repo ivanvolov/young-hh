@@ -54,6 +54,9 @@ abstract contract ALMTestSimBase is ALMTestBase {
         uint160 sqrtPriceX96 = hook.sqrtPriceCurrent();
         int24 tickLower = hook.tickLower();
         int24 tickUpper = hook.tickUpper();
+        assertApproxEqAbs(tickLower, hookControl.tickLower(), 1);
+        assertApproxEqAbs(tickUpper, hookControl.tickUpper(), 1);
+
         uint256 borrowed = lendingAdapter.getBorrowed();
         uint256 supplied = lendingAdapter.getSupplied();
         uint256 collateral = lendingAdapter.getCollateral();

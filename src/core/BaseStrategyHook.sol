@@ -58,9 +58,7 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         hookDeployer = msg.sender;
     }
 
-    function setLendingAdapter(
-        address _lendingAdapter
-    ) external onlyHookDeployer {
+    function setLendingAdapter(address _lendingAdapter) external onlyHookDeployer {
         if (address(lendingAdapter) != address(0)) {
             WETH.approve(address(lendingAdapter), 0);
             USDC.approve(address(lendingAdapter), 0);
@@ -70,9 +68,7 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         USDC.approve(address(lendingAdapter), type(uint256).max);
     }
 
-    function setRebalanceAdapter(
-        address _rebalanceAdapter
-    ) external onlyHookDeployer {
+    function setRebalanceAdapter(address _rebalanceAdapter) external onlyHookDeployer {
         rebalanceAdapter = _rebalanceAdapter;
     }
 
@@ -88,18 +84,11 @@ abstract contract BaseStrategyHook is BaseHook, IALM {
         shutdown = _shutdown;
     }
 
-    function setAuthorizedPool(
-        PoolKey memory authorizedPoolKey
-    ) external onlyHookDeployer {
+    function setAuthorizedPool(PoolKey memory authorizedPoolKey) external onlyHookDeployer {
         authorizedPool = PoolId.unwrap(authorizedPoolKey.toId());
     }
 
-    function getHookPermissions()
-        public
-        pure
-        override
-        returns (Hooks.Permissions memory)
-    {
+    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return
             Hooks.Permissions({
                 beforeInitialize: false,

@@ -26,12 +26,7 @@ interface IALM {
 
     event Deposit(address indexed to, uint256 amount, uint256 shares);
 
-    event Withdraw(
-        address indexed to,
-        uint256 shares,
-        uint256 amount0,
-        uint256 amount1
-    );
+    event Withdraw(address indexed to, uint256 shares, uint256 amount0, uint256 amount1);
 
     function sqrtPriceCurrent() external view returns (uint160);
 
@@ -40,4 +35,8 @@ interface IALM {
     function tickLower() external view returns (int24);
 
     function tickUpper() external view returns (int24);
+
+    function rebalanceAdapter() external view returns (address);
+
+    function updateBoundaries() external;
 }

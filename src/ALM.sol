@@ -31,9 +31,7 @@ contract ALM is BaseStrategyHook, ERC20 {
     using PoolIdLibrary for PoolKey;
     using CurrencySettler for Currency;
 
-    constructor(
-        IPoolManager manager
-    ) BaseStrategyHook(manager) ERC20("ALM", "hhALM") {} // TODO: change name to production
+    constructor(IPoolManager manager) BaseStrategyHook(manager) ERC20("ALM", "hhALM") {} // TODO: change name to production
 
     function afterInitialize(
         address,
@@ -41,13 +39,7 @@ contract ALM is BaseStrategyHook, ERC20 {
         uint160 sqrtPrice,
         int24,
         bytes calldata
-    )
-        external
-        override
-        onlyByPoolManager
-        onlyAuthorizedPool(key)
-        returns (bytes4)
-    {
+    ) external override onlyByPoolManager onlyAuthorizedPool(key) returns (bytes4) {
         console.log("> afterInitialize");
         sqrtPriceCurrent = sqrtPrice;
         _updateBoundaries();
@@ -64,15 +56,10 @@ contract ALM is BaseStrategyHook, ERC20 {
         revert AddLiquidityThroughHook();
     }
 
-    function deposit(
-        address to,
-        uint256 amount
-    ) external notPaused notShutdown returns (uint256, uint256) {
+    function deposit(address to, uint256 amount) external notPaused notShutdown returns (uint256, uint256) {
         if (amount == 0) revert ZeroLiquidity();
         refreshReserves();
-        (uint128 deltaL, uint256 amountIn, uint256 shares) = _calcDepositParams(
-            amount
-        );
+        (uint128 deltaL, uint256 amountIn, uint256 shares) = _calcDepositParams(amount);
 
         WETH.transferFrom(msg.sender, address(this), amountIn);
         lendingAdapter.addCollateral(WETH.balanceOf(address(this)));
@@ -85,8 +72,7 @@ contract ALM is BaseStrategyHook, ERC20 {
     }
 
     function withdraw(address to, uint256 sharesOut) external notPaused {
-        if (balanceOf(msg.sender) < sharesOut)
-            revert NotEnoughSharesToWithdraw();
+        if (balanceOf(msg.sender) < sharesOut) revert NotEnoughSharesToWithdraw();
         uint256 usdcToRepay = lendingAdapter.getBorrowed();
         uint256 usdcSupplied = lendingAdapter.getSupplied();
         if (usdcToRepay == 0) {
@@ -94,34 +80,18 @@ contract ALM is BaseStrategyHook, ERC20 {
                 console.log("> have usdc");
                 // ** have usdc;
                 lendingAdapter.withdraw(
-                    ALMMathLib.getWithdrawAmount(
-                        sharesOut,
-                        totalSupply(),
-                        lendingAdapter.getSupplied()
-                    )
+                    ALMMathLib.getWithdrawAmount(sharesOut, totalSupply(), lendingAdapter.getSupplied())
                 );
             }
             lendingAdapter.removeCollateral(
-                ALMMathLib.getWithdrawAmount(
-                    sharesOut,
-                    totalSupply(),
-                    lendingAdapter.getCollateral()
-                )
+                ALMMathLib.getWithdrawAmount(sharesOut, totalSupply(), lendingAdapter.getCollateral())
             );
         } else if (usdcToRepay != 0 && usdcSupplied == 0) {
             console.log("> have usdc debt");
             // ** have usdc debt;
             IRebalanceAdapter(rebalanceAdapter).withdraw(
-                ALMMathLib.getWithdrawAmount(
-                    sharesOut,
-                    totalSupply(),
-                    usdcToRepay
-                ),
-                ALMMathLib.getWithdrawAmount(
-                    sharesOut,
-                    totalSupply(),
-                    lendingAdapter.getCollateral()
-                )
+                ALMMathLib.getWithdrawAmount(sharesOut, totalSupply(), usdcToRepay),
+                ALMMathLib.getWithdrawAmount(sharesOut, totalSupply(), lendingAdapter.getCollateral())
             );
         } else revert BalanceInconsistency();
 
@@ -210,31 +180,14 @@ contract ALM is BaseStrategyHook, ERC20 {
 
     function getZeroForOneDeltas(
         int256 amountSpecified
-    )
-        internal
-        view
-        returns (
-            BeforeSwapDelta beforeSwapDelta,
-            uint256 wethOut,
-            uint256 usdcIn,
-            uint160 sqrtPriceNext
-        )
-    {
+    ) internal view returns (BeforeSwapDelta beforeSwapDelta, uint256 wethOut, uint256 usdcIn, uint160 sqrtPriceNext) {
         if (amountSpecified > 0) {
             // console.log("> amount specified positive");
             wethOut = uint256(amountSpecified);
 
-            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96ZeroForOneOut(
-                sqrtPriceCurrent,
-                liquidity,
-                wethOut
-            );
+            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96ZeroForOneOut(sqrtPriceCurrent, liquidity, wethOut);
 
-            usdcIn = ALMMathLib.getSwapAmount0(
-                sqrtPriceCurrent,
-                sqrtPriceNext,
-                liquidity
-            );
+            usdcIn = ALMMathLib.getSwapAmount0(sqrtPriceCurrent, sqrtPriceNext, liquidity);
 
             beforeSwapDelta = toBeforeSwapDelta(
                 -int128(uint128(wethOut)), // specified token = token1
@@ -244,17 +197,9 @@ contract ALM is BaseStrategyHook, ERC20 {
             // console.log("> amount specified negative");
             usdcIn = uint256(-amountSpecified);
 
-            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96ZeroForOneIn(
-                sqrtPriceCurrent,
-                liquidity,
-                usdcIn
-            );
+            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96ZeroForOneIn(sqrtPriceCurrent, liquidity, usdcIn);
 
-            wethOut = ALMMathLib.getSwapAmount1(
-                sqrtPriceCurrent,
-                sqrtPriceNext,
-                liquidity
-            );
+            wethOut = ALMMathLib.getSwapAmount1(sqrtPriceCurrent, sqrtPriceNext, liquidity);
 
             beforeSwapDelta = toBeforeSwapDelta(
                 int128(uint128(usdcIn)), // specified token = token0
@@ -265,31 +210,14 @@ contract ALM is BaseStrategyHook, ERC20 {
 
     function getOneForZeroDeltas(
         int256 amountSpecified
-    )
-        internal
-        view
-        returns (
-            BeforeSwapDelta beforeSwapDelta,
-            uint256 wethIn,
-            uint256 usdcOut,
-            uint160 sqrtPriceNext
-        )
-    {
+    ) internal view returns (BeforeSwapDelta beforeSwapDelta, uint256 wethIn, uint256 usdcOut, uint160 sqrtPriceNext) {
         if (amountSpecified > 0) {
             // console.log("> amount specified positive");
             usdcOut = uint256(amountSpecified);
 
-            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96OneForZeroOut(
-                sqrtPriceCurrent,
-                liquidity,
-                usdcOut
-            );
+            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96OneForZeroOut(sqrtPriceCurrent, liquidity, usdcOut);
 
-            wethIn = ALMMathLib.getSwapAmount1(
-                sqrtPriceCurrent,
-                sqrtPriceNext,
-                liquidity
-            );
+            wethIn = ALMMathLib.getSwapAmount1(sqrtPriceCurrent, sqrtPriceNext, liquidity);
 
             beforeSwapDelta = toBeforeSwapDelta(
                 -int128(uint128(usdcOut)), // specified token = token0
@@ -299,17 +227,9 @@ contract ALM is BaseStrategyHook, ERC20 {
             // console.log("> amount specified negative");
             wethIn = uint256(-amountSpecified);
 
-            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96OneForZeroIn(
-                sqrtPriceCurrent,
-                liquidity,
-                wethIn
-            );
+            sqrtPriceNext = ALMMathLib.sqrtPriceNextX96OneForZeroIn(sqrtPriceCurrent, liquidity, wethIn);
 
-            usdcOut = ALMMathLib.getSwapAmount0(
-                sqrtPriceCurrent,
-                sqrtPriceNext,
-                liquidity
-            );
+            usdcOut = ALMMathLib.getSwapAmount0(sqrtPriceCurrent, sqrtPriceNext, liquidity);
 
             beforeSwapDelta = toBeforeSwapDelta(
                 int128(uint128(wethIn)), // specified token = token1
@@ -319,24 +239,16 @@ contract ALM is BaseStrategyHook, ERC20 {
     }
 
     function redeemAndBorrow(uint256 usdcOut) internal {
-        uint256 withdrawAmount = ALMMathLib.min(
-            lendingAdapter.getSupplied(),
-            usdcOut
-        );
+        uint256 withdrawAmount = ALMMathLib.min(lendingAdapter.getSupplied(), usdcOut);
         if (withdrawAmount > 0) lendingAdapter.withdraw(withdrawAmount);
 
-        if (usdcOut > withdrawAmount)
-            lendingAdapter.borrow(usdcOut - withdrawAmount);
+        if (usdcOut > withdrawAmount) lendingAdapter.borrow(usdcOut - withdrawAmount);
     }
 
     function repayAndSupply(uint256 amountUSDC) internal {
-        uint256 repayAmount = ALMMathLib.min(
-            lendingAdapter.getBorrowed(),
-            amountUSDC
-        );
+        uint256 repayAmount = ALMMathLib.min(lendingAdapter.getBorrowed(), amountUSDC);
         if (repayAmount > 0) lendingAdapter.repay(repayAmount);
-        if (amountUSDC > repayAmount)
-            lendingAdapter.supply(amountUSDC - repayAmount);
+        if (amountUSDC > repayAmount) lendingAdapter.supply(amountUSDC - repayAmount);
     }
 
     function refreshReserves() public {
@@ -365,11 +277,7 @@ contract ALM is BaseStrategyHook, ERC20 {
 
     function _calcDepositParams(
         uint256 amount
-    )
-        public
-        view
-        returns (uint128 _liquidity, uint256 _amount, uint256 shares)
-    {
+    ) public view returns (uint128 _liquidity, uint256 _amount, uint256 shares) {
         _liquidity = ALMMathLib.getLiquidityFromAmount1SqrtPriceX96(
             ALMMathLib.getSqrtPriceAtTick(tickUpper),
             sqrtPriceCurrent,
@@ -387,18 +295,14 @@ contract ALM is BaseStrategyHook, ERC20 {
     }
 
     // TODO: Notice * I'm not using it now in the code at all.
-    function adjustForFeesDown(
-        uint256 amount
-    ) public pure returns (uint256 amountAdjusted) {
+    function adjustForFeesDown(uint256 amount) public pure returns (uint256 amountAdjusted) {
         // console.log("> amount specified", amount);
         amountAdjusted = amount - (amount * getSwapFees()) / 1e18;
         // console.log("> amount adjusted ", amountAdjusted);
     }
 
     // TODO: Notice * I'm not using it now in the code at all.
-    function adjustForFeesUp(
-        uint256 amount
-    ) public pure returns (uint256 amountAdjusted) {
+    function adjustForFeesUp(uint256 amount) public pure returns (uint256 amountAdjusted) {
         // console.log("> amount specified", amount);
         amountAdjusted = amount + (amount * getSwapFees()) / 1e18;
         // console.log("> amount adjusted ", amountAdjusted);

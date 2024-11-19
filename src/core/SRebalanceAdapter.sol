@@ -68,9 +68,7 @@ contract SRebalanceAdapter is Ownable {
         alm = IALM(_alm);
     }
 
-    function setSqrtPriceLastRebalance(
-        uint160 _sqrtPriceLastRebalance
-    ) external onlyOwner {
+    function setSqrtPriceLastRebalance(uint160 _sqrtPriceLastRebalance) external onlyOwner {
         sqrtPriceLastRebalance = _sqrtPriceLastRebalance;
     }
 
@@ -84,24 +82,18 @@ contract SRebalanceAdapter is Ownable {
         USDC.approve(address(lendingAdapter), type(uint256).max);
     }
 
-    function setTickDeltaThreshold(
-        int24 _tickDeltaThreshold
-    ) external onlyOwner {
+    function setTickDeltaThreshold(int24 _tickDeltaThreshold) external onlyOwner {
         tickDeltaThreshold = _tickDeltaThreshold;
     }
 
-    function isPriceRebalanceNeeded() public view returns (bool) {
-        int24 tickLastRebalance = ALMMathLib.getTickFromSqrtPrice(
-            sqrtPriceLastRebalance
-        );
-        int24 tickCurrent = ALMMathLib.getTickFromSqrtPrice(
-            alm.sqrtPriceCurrent()
-        );
+    function isPriceRebalanceNeeded() public view returns (bool, int24) {
+        int24 tickLastRebalance = ALMMathLib.getTickFromSqrtPrice(sqrtPriceLastRebalance);
+        int24 tickCurrent = ALMMathLib.getTickFromSqrtPrice(alm.sqrtPriceCurrent());
 
         int24 tickDelta = tickCurrent - tickLastRebalance;
         tickDelta = tickDelta > 0 ? tickDelta : -tickDelta;
 
-        return tickDelta > tickDeltaThreshold;
+        return (tickDelta > tickDeltaThreshold, tickDelta);
     }
 
     function withdraw(uint256 deltaDebt, uint256 deltaCollateral) external {
@@ -111,55 +103,37 @@ contract SRebalanceAdapter is Ownable {
         uint256[] memory amounts = new uint256[](1);
         uint256[] memory modes = new uint256[](1);
         (assets[0], amounts[0], modes[0]) = (address(USDC), deltaDebt, 0);
-        LENDING_POOL.flashLoan(
-            address(this),
-            assets,
-            amounts,
-            modes,
-            address(this),
-            abi.encode(deltaCollateral),
-            0
-        );
+        LENDING_POOL.flashLoan(address(this), assets, amounts, modes, address(this), abi.encode(deltaCollateral), 0);
     }
 
     function rebalance() external onlyOwner {
-        if (!isPriceRebalanceNeeded()) revert NoRebalanceNeeded();
+        (bool isRebalance, ) = isPriceRebalanceNeeded();
+        if (!isRebalance) revert NoRebalanceNeeded();
         alm.refreshReserves();
 
         // Notice: we have two cases: have usdc; have usdc debt;
         uint256 usdcToRepay = lendingAdapter.getBorrowed();
         if (usdcToRepay > 0) {
-            console.log("> ! 1");
-            // USDC debt. Borrow usdc to repay, repay. Swap ETH to USDC. Return back.
+            // console.log("> ! 1");
+            // ** USDC debt. Borrow usdc to repay, repay. Swap ETH to USDC. Return back.
             address[] memory assets = new address[](1);
             uint256[] memory amounts = new uint256[](1);
             uint256[] memory modes = new uint256[](1);
             (assets[0], amounts[0], modes[0]) = (address(USDC), usdcToRepay, 0);
-            LENDING_POOL.flashLoan(
-                address(this),
-                assets,
-                amounts,
-                modes,
-                address(this),
-                "",
-                0
-            );
+            LENDING_POOL.flashLoan(address(this), assets, amounts, modes, address(this), "", 0);
         } else {
-            console.log("> ! 2");
-            // USDC supplied: just swap USDC to ETH
+            // console.log("> ! 2");
+            // ** USDC supplied: just swap USDC to ETH
             uint256 usdcSupplied = lendingAdapter.getSupplied();
             if (usdcSupplied > 0) {
                 lendingAdapter.withdraw(usdcSupplied);
-                uint256 ethOut = ALMBaseLib.swapExactInput(
-                    address(USDC),
-                    address(WETH),
-                    usdcSupplied
-                );
+                uint256 ethOut = ALMBaseLib.swapExactInput(address(USDC), address(WETH), usdcSupplied);
                 lendingAdapter.addCollateral(ethOut);
             }
         }
 
         sqrtPriceLastRebalance = alm.sqrtPriceCurrent();
+        alm.updateBoundaries();
     }
 
     function executeOperation(
@@ -175,21 +149,13 @@ contract SRebalanceAdapter is Ownable {
             lendingAdapter.repay(amounts[0]);
             lendingAdapter.removeCollateral(lendingAdapter.getCollateral());
 
-            ALMBaseLib.swapExactOutput(
-                address(WETH),
-                address(USDC),
-                amounts[0] + premiums[0]
-            );
+            ALMBaseLib.swapExactOutput(address(WETH), address(USDC), amounts[0] + premiums[0]);
             lendingAdapter.addCollateral(WETH.balanceOf(address(this)));
         } else {
             lendingAdapter.repay(amounts[0]);
             lendingAdapter.removeCollateral(abi.decode(data, (uint256)));
 
-            ALMBaseLib.swapExactOutput(
-                address(WETH),
-                address(USDC),
-                amounts[0] + premiums[0]
-            );
+            ALMBaseLib.swapExactOutput(address(WETH), address(USDC), amounts[0] + premiums[0]);
             WETH.transfer(address(alm), WETH.balanceOf(address(this)));
         }
         return true;

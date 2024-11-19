@@ -206,7 +206,7 @@ abstract contract ALMTestBase is Test, Deployers {
     }
 
     function __swap(bool zeroForOne, int256 amount, PoolKey memory _key) internal returns (int256, int256) {
-        console.log("> __swap");
+        // console.log("> __swap");
         uint256 wethBefore = WETH.balanceOf(swapper.addr);
         uint256 usdcBefore = USDC.balanceOf(swapper.addr);
 

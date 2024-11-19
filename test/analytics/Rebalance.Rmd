@@ -1,0 +1,98 @@
+---
+title: "HH Simulation rebalance charts"
+output: html_notebook
+---
+
+```{r warnigns=FALSE}
+suppressWarnings(library(ggplot2))
+suppressWarnings(library(tidyverse))
+suppressWarnings(library(DT))
+suppressWarnings(library(plotly))
+suppressWarnings(library(gridExtra))
+suppressWarnings(library(knitr))
+suppressWarnings(library(dplyr))
+```
+
+```{r warnigns=FALSE}
+rm(list = ls())
+deposits <- read.csv("../simulations/out/deposits.csv", colClasses = c("actor" = "character"))
+withdraws <- read.csv("../simulations/out/withdraws.csv", colClasses = c("actor" = "character"))
+
+states <- read.csv("../simulations/out/states.csv")
+states$collateral <- as.numeric(states$collateral) / 1e18
+
+swaps <- read.csv("../simulations/out/swaps.csv")
+swaps$zFo <- as.logical(swaps$zFo)
+swaps$In <- as.logical(swaps$In)
+swaps$amount <- ifelse(
+  (swaps$zFo & swaps$In) | (!swaps$zFo & !swaps$In),
+  as.numeric(swaps$amount) / 1e6,
+  as.numeric(swaps$amount) / 1e18
+)
+
+swaps$delta0 = as.numeric(swaps$delta0) / 1e6
+swaps$delta0c = as.numeric(swaps$delta0c) / 1e6
+
+swaps$delta1 = as.numeric(swaps$delta1) / 1e18
+swaps$delta1c = as.numeric(swaps$delta1c) / 1e18
+
+
+#head(deposits)
+dim(swaps)
+dim(states)
+```
+
+## Swap sqrtPrice with control comparison
+
+```{r}
+states_first <- states %>%
+  group_by(bN) %>%
+  slice(1) %>%
+  ungroup()
+
+merged_data <- left_join(swaps, states_first, by = "bN")
+q = 2**96
+merged_data$price <- 1e12/(merged_data$sqrt/q)**2
+merged_data$priceC <- 1e12/(merged_data$sqrtC/q)**2
+```
+
+```{r}
+if (nrow(merged_data) > 0) {
+plot1 <- ggplot(merged_data) +
+  geom_line(aes(x = bN, y = price), color = "green", linewidth = 1) +
+  geom_line(aes(x = bN, y = priceC), color = "red", linewidth = 1, linetype = "dashed") +  # Add 'priceC' line
+  labs(title = "Price Chart", y = "Price") +
+  theme_minimal()
+
+# Create the trading volume bar chart
+plot2 <- ggplot(merged_data, aes(x = bN, y = delta1)) +
+  geom_bar(stat = "identity", fill = "blue", alpha = 0.7) +
+  labs(title = "Trading Volume (amount)", y = "amount") +
+  theme_minimal()
+
+plot1 <- ggplotly(plot1)
+plot2 <- ggplotly(plot2)
+
+combined_plot <- subplot(
+  plot1, plot2,
+  nrows = 2,
+  shareX = TRUE,
+  heights = c(0.7, 0.3)  # 70% height for the price chart and 30% for the volume chart
+) %>%
+  layout(
+    title = "Pool ALM",
+    xaxis = list(
+      title = "Block Number",
+      rangeslider = list(
+        visible = TRUE,
+        thickness = 0.02  # Adjust thickness of the range slider to reduce height
+      )
+    ),
+    yaxis = list(title = "Price"),  # Y-axis for the price chart
+    yaxis2 = list(title = "amount")  # Y-axis for the volume chart
+  )
+
+# Show the combined plot
+combined_plot
+}
+```
