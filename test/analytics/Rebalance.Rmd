@@ -54,30 +54,71 @@ merged_data <- left_join(swaps, states_first, by = "bN")
 q = 2**96
 merged_data$price <- 1e12/(merged_data$sqrt/q)**2
 merged_data$priceC <- 1e12/(merged_data$sqrtC/q)**2
+
+merged_data$tvl = merged_data$tvl/1e18
+merged_data$tvlControl = merged_data$tvlControl/1e18
+
+merged_data$shareP = merged_data$shareP/1e18
+merged_data$sharePc = merged_data$sharePc/1e18
+
+merged_data$resUSDC <- (-merged_data$borrowed + merged_data$supplied) / 1e6
 ```
 
 ```{r}
-if (nrow(merged_data) > 0) {
+# Create the TVL chart
 plot1 <- ggplot(merged_data) +
+  geom_line(aes(x = bN, y = tvl), color = "blue", linewidth = 1) +
+  geom_line(aes(x = bN, y = tvlControl), color = "blue", linewidth = 1, linetype = "dashed") +
+  labs(title = "TVL Chart", y = "TVL") +
+  theme_minimal()
+
+# Create the price chart
+plot2 <- ggplot(merged_data) +
   geom_line(aes(x = bN, y = price), color = "green", linewidth = 1) +
-  geom_line(aes(x = bN, y = priceC), color = "red", linewidth = 1, linetype = "dashed") +  # Add 'priceC' line
+  geom_line(aes(x = bN, y = priceC), color = "red", linewidth = 1, linetype = "dashed") +
   labs(title = "Price Chart", y = "Price") +
   theme_minimal()
 
-# Create the trading volume bar chart
-plot2 <- ggplot(merged_data, aes(x = bN, y = delta1)) +
-  geom_bar(stat = "identity", fill = "blue", alpha = 0.7) +
-  labs(title = "Trading Volume (amount)", y = "amount") +
+# Create the shareP chart
+plot3 <- ggplot(merged_data) +
+  geom_line(aes(x = bN, y = shareP), color = "purple", linewidth = 1) +
+  geom_line(aes(x = bN, y = sharePc), color = "purple", linewidth = 1, linetype = "dotted") +
+  labs(title = "Share Chart", y = "Share") +
   theme_minimal()
 
+# Create the tL and tU chart
+plot4 <- ggplot(merged_data) +
+  geom_line(aes(x = bN, y = tL), color = "orange", linewidth = 1) +
+  geom_line(aes(x = bN, y = tU), color = "orange", linewidth = 1) +
+  labs(title = "Threshold Chart", y = "Thresholds") +
+  theme_minimal()
+
+# Create the resUSDC bar plot
+plot5 <- ggplot(merged_data, aes(x = bN, y = resUSDC)) +
+  geom_bar(stat = "identity", fill = "cyan", alpha = 0.7) +
+  labs(title = "USDC Reserve Chart", y = "USDC Amount") +
+  theme_minimal()
+
+# Create the supplied line chart
+plot6 <- ggplot(merged_data) +
+  geom_line(aes(x = bN, y = supplied), color = "darkred", linewidth = 1) +
+  labs(title = "Supplied Chart", y = "Supplied Amount") +
+  theme_minimal()
+
+# Convert ggplots to plotly objects
 plot1 <- ggplotly(plot1)
 plot2 <- ggplotly(plot2)
+plot3 <- ggplotly(plot3)
+plot4 <- ggplotly(plot4)
+plot5 <- ggplotly(plot5)
+plot6 <- ggplotly(plot6)
 
+# Combine the plots into a subplot
 combined_plot <- subplot(
-  plot1, plot2,
-  nrows = 2,
+  plot1, plot2, plot3, plot4, plot5, plot6,
+  nrows = 6,
   shareX = TRUE,
-  heights = c(0.7, 0.3)  # 70% height for the price chart and 30% for the volume chart
+  heights = c(0.3, 0.2, 0.15, 0.15, 0.1, 0.1)  # Adjust height ratios
 ) %>%
   layout(
     title = "Pool ALM",
@@ -85,14 +126,17 @@ combined_plot <- subplot(
       title = "Block Number",
       rangeslider = list(
         visible = TRUE,
-        thickness = 0.02  # Adjust thickness of the range slider to reduce height
+        thickness = 0.01  # Thickness of the range slider
       )
     ),
-    yaxis = list(title = "Price"),  # Y-axis for the price chart
-    yaxis2 = list(title = "amount")  # Y-axis for the volume chart
+    yaxis = list(title = "TVL"),           # Y-axis for the TVL chart
+    yaxis2 = list(title = "Price"),       # Y-axis for the price chart
+    yaxis3 = list(title = "Share"),       # Y-axis for the share chart
+    yaxis4 = list(title = "Threshold"),  # Y-axis for the threshold chart
+    yaxis5 = list(title = "USDC Amount"), # Y-axis for the USDC reserve chart
+    yaxis6 = list(title = "Supplied")     # Y-axis for the supplied chart
   )
 
 # Show the combined plot
 combined_plot
-}
 ```
