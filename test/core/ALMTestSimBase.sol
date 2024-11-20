@@ -184,6 +184,17 @@ abstract contract ALMTestSimBase is ALMTestBase {
         vm.ffi(inputs);
     }
 
+    function save_rebalance_data(int24 delta) internal {
+        bytes memory packedData = abi.encodePacked(delta, block.number);
+        string memory packedHexString = toHexString(packedData);
+
+        string[] memory inputs = new string[](3);
+        inputs[0] = "node";
+        inputs[1] = "test/simulations/logRebalance.js";
+        inputs[2] = packedHexString;
+        vm.ffi(inputs);
+    }
+
     function random(uint256 randomCap) public returns (uint) {
         string[] memory inputs = new string[](3);
         inputs[0] = "node";

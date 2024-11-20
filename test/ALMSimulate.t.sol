@@ -212,6 +212,8 @@ contract ALMSimulationTest is ALMTestSimBase {
 
             vm.prank(swapper.addr);
             hookControl.rebalance();
+
+            save_rebalance_data(delta);
         }
     }
 
