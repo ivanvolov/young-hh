@@ -63,56 +63,56 @@ merged_data$shareP = merged_data$shareP/1e18
 merged_data$sharePc = merged_data$sharePc/1e18
 
 merged_data$resUSDC <- (-merged_data$borrowed + merged_data$supplied) / 1e6
-
+merged_data$resUSDC = as.integer(merged_data$resUSDC)
 merged_data <- left_join(merged_data, rebalances, by = "bN")
 ```
 
 ```{r}
-# Ensure `resUSDC` and `collateral` are integers
-merged_data$resUSDC <- as.integer(merged_data$resUSDC)
-merged_data$collateral <- as.integer(merged_data$collateral)
+event_lines <- merged_data %>%
+  filter(!is.na(delta)) %>%
+  select(bN)
 
-# Create the TVL chart
 plot1 <- ggplot(merged_data) +
   geom_line(aes(x = bN, y = tvl), color = "blue", linewidth = 1) +
   geom_line(aes(x = bN, y = tvlControl), color = "blue", linewidth = 1, linetype = "dashed") +
+  geom_vline(data = event_lines, aes(xintercept = bN), color = "red", linewidth = 1) +  # Add solid red lines for events
   labs(title = "TVL Chart", y = "TVL") +
   theme_minimal()
 
-# Create the price chart
 plot2 <- ggplot(merged_data) +
   geom_line(aes(x = bN, y = price), color = "green", linewidth = 1) +
   geom_line(aes(x = bN, y = priceC), color = "red", linewidth = 1, linetype = "dashed") +
+  geom_vline(data = event_lines, aes(xintercept = bN), color = "red", linewidth = 1) +
   labs(title = "Price Chart", y = "Price") +
   theme_minimal()
 
-# Create the shareP chart
 plot3 <- ggplot(merged_data) +
   geom_line(aes(x = bN, y = shareP), color = "purple", linewidth = 1) +
   geom_line(aes(x = bN, y = sharePc), color = "purple", linewidth = 1, linetype = "dotted") +
+  geom_vline(data = event_lines, aes(xintercept = bN), color = "red", linewidth = 1) +
   labs(title = "Share Chart", y = "Share") +
   theme_minimal()
 
-# Create the tL and tU chart
 plot4 <- ggplot(merged_data) +
   geom_line(aes(x = bN, y = tL), color = "orange", linewidth = 1) +
   geom_line(aes(x = bN, y = tU), color = "orange", linewidth = 1) +
+  geom_vline(data = event_lines, aes(xintercept = bN), color = "red", linewidth = 1) +
   labs(title = "Threshold Chart", y = "Thresholds") +
   theme_minimal()
 
-# Create the resUSDC bar plot
 plot5 <- ggplot(merged_data, aes(x = bN, y = resUSDC)) +
   geom_bar(stat = "identity", fill = "cyan", alpha = 0.7) +
+  geom_vline(data = event_lines, aes(xintercept = bN), color = "red", linewidth = 1) +
+  scale_y_continuous(labels = scales::label_comma()) +  # Format y-axis labels as integers
   labs(title = "USDC Reserve Chart", y = "USDC Amount") +
   theme_minimal()
 
-# Create the collateral bar plot
 plot6 <- ggplot(merged_data, aes(x = bN, y = collateral)) +
   geom_bar(stat = "identity", fill = "darkred", alpha = 0.7) +
+  geom_vline(data = event_lines, aes(xintercept = bN), color = "red", linewidth = 1) +
   labs(title = "Collateral Chart", y = "Collateral Amount") +
   theme_minimal()
 
-# Convert ggplots to plotly objects
 plot1 <- ggplotly(plot1)
 plot2 <- ggplotly(plot2)
 plot3 <- ggplotly(plot3)
@@ -120,12 +120,11 @@ plot4 <- ggplotly(plot4)
 plot5 <- ggplotly(plot5)
 plot6 <- ggplotly(plot6)
 
-# Combine the plots into a subplot
 combined_plot <- subplot(
   plot1, plot2, plot3, plot4, plot5, plot6,
   nrows = 6,
   shareX = TRUE,
-  heights = c(0.2, 0.2, 0.15, 0.15, 0.1, 0.1)  # Adjust height ratios
+  heights = c(0.15, 0.2, 0.15, 0.1, 0.2, 0.1)  # Adjust height ratios
 ) %>%
   layout(
     title = "Pool ALM",
@@ -133,17 +132,25 @@ combined_plot <- subplot(
       title = "Block Number",
       rangeslider = list(
         visible = TRUE,
-        thickness = 0.02  # Thickness of the range slider
+        thickness = 0.01
       )
     ),
-    yaxis = list(title = "TVL"),           # Y-axis for the TVL chart
-    yaxis2 = list(title = "Price"),       # Y-axis for the price chart
-    yaxis3 = list(title = "Share"),       # Y-axis for the share chart
-    yaxis4 = list(title = "Threshold"),  # Y-axis for the threshold chart
-    yaxis5 = list(title = "USDC Amount"), # Y-axis for the USDC reserve chart
-    yaxis6 = list(title = "Collateral Amount") # Y-axis for the collateral chart
+    yaxis = list(title = "TVL"),
+    yaxis2 = list(title = "Price"),
+    yaxis3 = list(title = "Share"),
+    yaxis4 = list(title = "Ticks"),
+    yaxis5 = list(title = "Supplied"),
+    yaxis6 = list(title = "Collateral"),
+    hovermode = "x unified",  # Synchronize hover across all charts
+    shapes = list(
+      list(
+        type = "line",
+        x0 = 0, x1 = 1, xref = "paper",
+        y0 = 0, y1 = 1, yref = "paper",
+        line = list(color = "gray", dash = "dot")
+      )
+    )
   )
 
-# Show the combined plot
 combined_plot
 ```
